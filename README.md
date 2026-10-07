@@ -1,56 +1,30 @@
-# Welcome to your Expo app 👋
+# Rota
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+App para conectar alunos a instrutores autônomos de direção e acompanhar o caminho até a CNH. Feito com Expo SDK 57, React Native, TypeScript e Expo Router, com base na estrutura do repositório de referência.
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Executar
 
 ```bash
-npm run reset-project
+npm install
+npm run web
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Para usar o Expo Go, execute `npm start` e leia o QR code. Também estão disponíveis `npm run android` e `npm run ios`.
 
-### Other setup steps
+## Acesso demonstrativo
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+Na abertura, toque em **Começar agora** para chegar ao login. A partir dele, é possível entrar ou criar uma conta de aluno ou profissional. O cadastro de aluno é direto; o profissional tem etapas para dados pessoais, CNH, experiência e veículo.
 
-## Learn more
+Para experimentar os painéis sem preencher cadastro, escolha Aluno, Instrutor ou Admin no login. O protótipo aceita qualquer e-mail e senha não vazios.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Áreas
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- Aluno: progresso da habilitação, busca e filtros de instrutores, pedidos de aula, agenda e perfil.
+- Instrutor: agenda diária, disponibilidade, alunos, veículo cadastrado e perfil profissional.
+- Administração: indicadores, revisão de instrutores e veículos, usuários e operação de aulas.
+- Aula: aluno e instrutor confirmam presença antes de iniciar; a tela mede a duração e mostra um relatório demonstrativo ao finalizar.
 
-## Join the community
+## Limites do protótipo
 
-Join our community of developers creating universal apps.
+Não há autenticação real, API, banco de dados, pagamentos, notificações ou GPS conectado. Distância, percurso e velocidades do relatório são ilustrativos; a integração IoT/GPS e as confirmações em sessões separadas serão necessárias antes do uso em produção. As ações demonstrativas reiniciam ao recarregar o app.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.

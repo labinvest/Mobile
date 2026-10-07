@@ -1,98 +1,66 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
+import { Redirect, router } from 'expo-router';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { ActionButton, AppText, Brand, ScreenWidth } from '@/components/drive-ui';
+import { DriveColors } from '@/constants/drive-theme';
+import { useDriveApp } from '@/hooks/use-drive-app';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+export default function IndexRoute() {
+  const { authenticated } = useDriveApp();
+  if (authenticated) return <Redirect href="/(tabs)" />;
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
-
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.content}>
+        <View style={styles.header}><Brand /><AppText style={styles.headerLabel}>AULAS DE DIREÇÃO</AppText></View>
+        <View style={styles.hero}>
+          <AppText style={styles.eyebrow}>APRENDER. PRATICAR. CONQUISTAR.</AppText>
+          <AppText style={styles.title}>Sua CNH começa com uma boa aula.</AppText>
+          <AppText style={styles.subtitle}>Conecte-se a instrutores independentes e avance no seu tempo.</AppText>
+          <View style={styles.routeCard}>
+            <View style={styles.routeHeader}><AppText style={styles.routeLabel}>SEU PRÓXIMO DESTINO</AppText><AppText style={styles.routeNumber}>01 / 03</AppText></View>
+            <View style={styles.routeLine}>
+              <View style={styles.routeDot} /><View style={styles.routeDash} /><View style={styles.routeDash} /><View style={styles.routeDash} /><View style={styles.routeDestination} />
+            </View>
+            <View style={styles.routeFooter}><AppText style={styles.routeStart}>Primeira aula</AppText><AppText style={styles.routeEnd}>Sua habilitação</AppText></View>
+          </View>
+        </View>
+        <View style={styles.actions}>
+          <ActionButton label="Começar agora" onPress={() => router.push('/login')} />
+          <Pressable accessibilityRole="button" onPress={() => router.push('/login')} style={styles.loginLink}>
+            <AppText style={styles.loginLinkText}>Já tem conta? <AppText style={styles.loginLinkStrong}>Entrar</AppText></AppText>
+          </Pressable>
+        </View>
+        <AppText style={styles.footer}>Instrutores autônomos. Mais liberdade no seu caminho.</AppText>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  safeArea: { flex: 1, backgroundColor: DriveColors.ink },
+  content: { flex: 1, width: '100%', maxWidth: ScreenWidth, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 18, paddingBottom: 16 },
+  header: { minHeight: 42, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerLabel: { color: '#D6E1D8', fontSize: 10, fontWeight: '700' },
+  hero: { flex: 1, justifyContent: 'center', paddingVertical: 34 },
+  eyebrow: { color: DriveColors.lime, fontSize: 11, fontWeight: '700', marginBottom: 16 },
+  title: { maxWidth: 470, color: DriveColors.white, fontSize: 42, lineHeight: 47, fontWeight: '700' },
+  subtitle: { maxWidth: 400, color: '#D6E1D8', fontSize: 16, lineHeight: 23, marginTop: 14 },
+  routeCard: { marginTop: 34, padding: 16, backgroundColor: '#2C3A31', borderRadius: 10 },
+  routeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  routeLabel: { color: '#D6E1D8', fontSize: 10, fontWeight: '700' },
+  routeNumber: { color: DriveColors.lime, fontSize: 11, fontWeight: '700' },
+  routeLine: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  routeDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: DriveColors.lime },
+  routeDash: { width: 30, height: 2, backgroundColor: '#758579' },
+  routeDestination: { width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: DriveColors.lime },
+  routeFooter: { flexDirection: 'row', justifyContent: 'space-between' },
+  routeStart: { color: DriveColors.white, fontSize: 12, fontWeight: '600' },
+  routeEnd: { color: '#D6E1D8', fontSize: 12 },
+  actions: { gap: 12 },
+  loginLink: { alignSelf: 'center', minHeight: 40, justifyContent: 'center' },
+  loginLinkText: { color: '#D6E1D8', fontSize: 13 },
+  loginLinkStrong: { color: DriveColors.lime, fontWeight: '700' },
+  footer: { textAlign: 'center', color: '#A7B6AB', fontSize: 11, marginTop: 'auto', paddingTop: 18 },
 });

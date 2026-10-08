@@ -45,14 +45,6 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.form}>
-              <AppText style={styles.label}>Acessar como</AppText>
-              <SegmentedButtons
-                value={role}
-                onValueChange={(value) => setRole(value as Role)}
-                buttons={roles.map((option) => ({ value: option.key, label: option.label }))}
-                style={styles.roleSwitch}
-              />
-
               <View style={styles.inputGroup}>
                 <FormField
                   label="E-mail"

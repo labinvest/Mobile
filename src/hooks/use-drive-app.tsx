@@ -6,15 +6,36 @@ export type Appointment = {
   id: number;
   teacherId: string;
   teacherName: string;
+  studentName: string;
   lesson: string;
   date: string;
   time: string;
   vehicle: string;
-  status: 'scheduled' | 'in-progress' | 'completed';
+  status: 'requested' | 'declined' | 'scheduled' | 'in-progress' | 'completed';
   studentConfirmed: boolean;
   teacherConfirmed: boolean;
+  meetingPoint?: string;
+  notes?: string;
+  price?: string;
+  reviews?: {
+    student?: LessonReview;
+    teacher?: LessonReview;
+  };
   startedAt?: number;
   durationSeconds?: number;
+};
+
+export type LessonReview = {
+  authorName: string;
+  rating: number;
+  comment: string;
+  submittedAt: number;
+};
+
+export type LessonRequest = Pick<Appointment, 'teacherId' | 'teacherName' | 'studentName' | 'lesson' | 'date' | 'time' | 'vehicle'> & {
+  meetingPoint: string;
+  notes: string;
+  price?: string;
 };
 
 type DriveAppContextValue = {
@@ -26,11 +47,13 @@ type DriveAppContextValue = {
   signIn: (role: Role, name?: string, email?: string) => void;
   signOut: () => void;
   setRole: (role: Role) => void;
-  bookLesson: (teacherId: string, teacherName: string, vehicle: string) => void;
+  requestLesson: (request: LessonRequest) => void;
+  respondToLesson: (appointmentId: number, accepted: boolean) => void;
   setAvailability: (available: boolean) => void;
   confirmLesson: (appointmentId: number, party: 'student' | 'teacher') => void;
   startLesson: (appointmentId: number) => void;
   finishLesson: (appointmentId: number) => void;
+  submitLessonReview: (appointmentId: number, author: 'student' | 'teacher', rating: number, comment: string) => void;
 };
 
 const DriveAppContext = createContext<DriveAppContextValue | null>(null);
@@ -41,7 +64,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [accountName, setAccountName] = useState('Julia Martins');
   const [accountEmail, setAccountEmail] = useState('aluno@rota.app');
   const [appointments, setAppointments] = useState<Appointment[]>([
-    { id: 1, teacherId: 'ana', teacherName: 'Ana Paula Ribeiro', lesson: 'Aula prática · Trânsito urbano', date: 'Qui, 8 out', time: '14h30', vehicle: 'HB20 2023 · Automático', status: 'scheduled', studentConfirmed: false, teacherConfirmed: false },
+    { id: 1, teacherId: 'ana', teacherName: 'Ana Paula Ribeiro', studentName: 'Julia Martins', lesson: 'Aula prática · Trânsito urbano', date: 'Qui, 8 out', time: '14h30', vehicle: 'HB20 2023 · Automático', status: 'scheduled', studentConfirmed: false, teacherConfirmed: false },
   ]);
   const [, setAvailable] = useState(true);
 
@@ -63,11 +86,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAccountEmail(nextRole === 'teacher' ? 'instrutor@rota.app' : nextRole === 'admin' ? 'admin@rota.app' : 'aluno@rota.app');
   }
 
-  function bookLesson(teacherId: string, teacherName: string, vehicle: string) {
-    setAppointments((current) => {
-      if (current.some((appointment) => appointment.teacherId === teacherId)) return current;
-      return [...current, { id: Date.now(), teacherId, teacherName, lesson: 'Aula prática · Primeira disponibilidade', date: 'Sex, 9 out', time: '10h00', vehicle, status: 'scheduled', studentConfirmed: false, teacherConfirmed: false }];
-    });
+  function requestLesson(request: LessonRequest) {
+    setAppointments((current) => [...current, {
+      ...request,
+      id: Date.now(),
+      status: 'requested',
+      studentConfirmed: false,
+      teacherConfirmed: false,
+    }]);
+  }
+
+  function respondToLesson(appointmentId: number, accepted: boolean) {
+    setAppointments((current) => current.map((appointment) => appointment.id === appointmentId && appointment.status === 'requested'
+      ? { ...appointment, status: accepted ? 'scheduled' : 'declined' }
+      : appointment));
   }
 
   function setAvailability(available: boolean) {
@@ -94,7 +126,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }
 
-  return <DriveAppContext.Provider value={{ role, authenticated, accountName, accountEmail, appointments, signIn, signOut, setRole, bookLesson, setAvailability, confirmLesson, startLesson, finishLesson }}>{children}</DriveAppContext.Provider>;
+  function submitLessonReview(appointmentId: number, author: 'student' | 'teacher', rating: number, comment: string) {
+    if (role !== author || !Number.isInteger(rating) || rating < 1 || rating > 5) return;
+    setAppointments((current) => current.map((appointment) => {
+      if (appointment.id !== appointmentId || appointment.status !== 'completed' || appointment.reviews?.[author]) return appointment;
+      return {
+        ...appointment,
+        reviews: {
+          ...appointment.reviews,
+          [author]: { authorName: accountName, rating, comment: comment.trim(), submittedAt: Date.now() },
+        },
+      };
+    }));
+  }
+
+  return <DriveAppContext.Provider value={{ role, authenticated, accountName, accountEmail, appointments, signIn, signOut, setRole, requestLesson, respondToLesson, setAvailability, confirmLesson, startLesson, finishLesson, submitLessonReview }}>{children}</DriveAppContext.Provider>;
 }
 
 export function useDriveApp() {

@@ -15,8 +15,8 @@ export default function RootLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="login" />
             <Stack.Screen name="register" />
+            <Stack.Screen name="booking" />
             <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="lesson" />
           </Stack>
         </ThemeProvider>
       </AppProvider>

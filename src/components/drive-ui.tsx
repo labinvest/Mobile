@@ -3,6 +3,7 @@ import { router, usePathname } from 'expo-router';
 import { Pressable, ScrollView, StyleProp, StyleSheet, TextStyle, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Avatar, Button, Chip, Divider, Drawer, IconButton, Modal, Portal, Text as PaperText, TextInput, TextInputProps as PaperTextInputProps } from 'react-native-paper';
+import Svg, { Rect, Text as SvgText } from 'react-native-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DriveColors } from '@/constants/drive-theme';
@@ -26,10 +27,29 @@ export function Screen({ children }: { children: ReactNode }) {
 
 export function Brand() {
   return (
-    <View style={styles.brand}>
-      <View style={styles.brandMark}><AppText style={styles.brandInitial}>R</AppText></View>
-      <AppText style={styles.brandName}>rota</AppText>
-    </View>
+    <Svg width={125} height={40} viewBox="0 0 250 80" accessibilityLabel="Rota">
+      <Rect x="10" y="10" width="60" height="60" rx="16" fill="#D2E968" />
+      <SvgText
+        x="40"
+        y="52"
+        fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        fontWeight="900"
+        fontSize="38"
+        fill="#1A2B23"
+        textAnchor="middle">
+        R
+      </SvgText>
+      <SvgText
+        x="85"
+        y="53"
+        fontFamily="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        fontWeight="900"
+        fontSize="44"
+        fill="#1A2B23"
+        letterSpacing={-1}>
+        Rota
+      </SvgText>
+    </Svg>
   );
 }
 
@@ -79,11 +99,11 @@ function ProfileDrawerButton() {
   const homeLabel = role === 'admin' ? 'Painel' : 'Início';
   const roleLabel = role === 'teacher' ? 'INSTRUTOR' : role === 'admin' ? 'ADMINISTRADOR' : 'ALUNO';
   const initials = accountName.split(' ').slice(0, 2).map((part) => part[0]).join('').toUpperCase();
-  const items: { label: string; route: '/(tabs)' | '/(tabs)/teachers' | '/(tabs)/schedule' | '/lesson' | '/(tabs)/account'; icon: keyof typeof drawerIcons }[] = [
+  const items: { label: string; route: '/(tabs)' | '/(tabs)/teachers' | '/(tabs)/lesson' | '/(tabs)/schedule' | '/(tabs)/account'; icon: keyof typeof drawerIcons }[] = [
     { label: homeLabel, route: '/(tabs)', icon: 'home' },
     { label: peopleLabel, route: '/(tabs)/teachers', icon: 'people' },
     { label: 'Agenda', route: '/(tabs)/schedule', icon: 'schedule' },
-    { label: 'Aula atual', route: '/lesson', icon: 'lesson' },
+    { label: 'Aula atual', route: '/(tabs)/lesson', icon: 'lesson' },
     { label: role === 'admin' ? 'Gestão' : 'Meu perfil', route: '/(tabs)/account', icon: 'profile' },
   ];
 
@@ -208,10 +228,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: DriveColors.background },
   scrollContent: { flexGrow: 1, paddingBottom: 26 },
   content: { width: '100%', maxWidth: ScreenWidth, alignSelf: 'center', paddingHorizontal: 22 },
-  brand: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  brandMark: { width: 27, height: 27, borderRadius: 8, backgroundColor: DriveColors.lime, alignItems: 'center', justifyContent: 'center' },
-  brandInitial: { color: DriveColors.ink, fontSize: 17, fontWeight: '800' },
-  brandName: { color: DriveColors.ink, fontSize: 21, fontWeight: '800' },
   topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 42, paddingTop: 5 },
   topBarActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   backBar: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

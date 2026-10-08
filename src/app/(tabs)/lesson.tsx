@@ -1,15 +1,29 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import { SymbolView } from 'expo-symbols';
+import { Card, IconButton } from 'react-native-paper';
 
-import { ActionButton, AppText, BackBar, Screen, SectionHeading, StatusTag } from '@/components/drive-ui';
+import { ActionButton, AppText, BackBar, FormField, Screen, SectionHeading, StatusTag, TopBar } from '@/components/drive-ui';
 import { DriveColors } from '@/constants/drive-theme';
-import { useDriveApp } from '@/hooks/use-drive-app';
+import { LessonReview, useDriveApp } from '@/hooks/use-drive-app';
+
+const starIcons = {
+  filled: { ios: 'star.fill', android: 'star', web: 'star' },
+  outline: { ios: 'star', android: 'star_outline', web: 'star_outline' },
+} as const;
 
 export default function LessonScreen() {
-  const { appointments, confirmLesson, startLesson, finishLesson } = useDriveApp();
+  const { role, accountName, appointments, confirmLesson, startLesson, finishLesson, submitLessonReview } = useDriveApp();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const lesson = appointments.find((appointment) => String(appointment.id) === id) ?? appointments[0];
+  const selectedLesson = id ? appointments.find((appointment) => String(appointment.id) === id) : undefined;
+  const activeLesson = appointments.find((appointment) => {
+    if (!['requested', 'scheduled', 'in-progress'].includes(appointment.status)) return false;
+    if (role === 'teacher') return appointment.teacherName === accountName;
+    if (role === 'student') return appointment.studentName === accountName;
+    return false;
+  });
+  const lesson = selectedLesson ?? activeLesson;
   const [now, setNow] = useState(0);
   const [attemptedStart, setAttemptedStart] = useState(false);
 
@@ -20,7 +34,18 @@ export default function LessonScreen() {
   }, [lesson?.status]);
 
   if (!lesson) {
-    return <Screen><BackBar title="Aula" /><AppText style={styles.emptyTitle}>Nenhuma aula selecionada.</AppText><ActionButton label="Ver agenda" onPress={() => router.navigate('/(tabs)/schedule')} /></Screen>;
+    return (
+      <Screen>
+        <TopBar roleLabel={role === 'teacher' ? 'Instrutor' : role === 'admin' ? 'Administração' : 'Aluno'} />
+        <View style={styles.emptyState}>
+          <View style={styles.emptyIcon}><SymbolView name={{ ios: 'car.fill', android: 'directions_car', web: 'directions_car' }} tintColor={DriveColors.green} size={28} /></View>
+          <StatusTag label="SEM AULA EM ESPERA" />
+          <AppText style={styles.emptyTitle}>Nenhuma aula para iniciar agora.</AppText>
+          <AppText style={styles.emptyCopy}>{role === 'student' ? 'Quando um instrutor aceitar seu pedido, a aula aparecerá aqui para as confirmações.' : role === 'teacher' ? 'Quando você aceitar um pedido, poderá confirmar a presença e iniciar a aula por aqui.' : 'Não há aula ativa para este perfil.'}</AppText>
+          <ActionButton label={role === 'student' ? 'Encontrar instrutor' : 'Ver agenda'} onPress={() => router.navigate(role === 'student' ? '/(tabs)/teachers' : '/(tabs)/schedule')} variant="secondary" />
+        </View>
+      </Screen>
+    );
   }
 
   const confirmedCount = Number(lesson.studentConfirmed) + Number(lesson.teacherConfirmed);
@@ -31,6 +56,7 @@ export default function LessonScreen() {
       : 0;
 
   function beginLesson() {
+    if (!lesson) return;
     if (confirmedCount < 2) {
       setAttemptedStart(true);
       return;
@@ -42,20 +68,26 @@ export default function LessonScreen() {
     <Screen>
       <BackBar title="Sala da aula" />
       <View style={styles.heading}>
-        <View style={styles.statusLine}><AppText style={styles.eyebrow}>AULA PRÁTICA · CATEGORIA B</AppText><StatusTag label={lesson.status === 'completed' ? 'FINALIZADA' : lesson.status === 'in-progress' ? 'EM ANDAMENTO' : 'AGENDADA'} /></View>
+        <View style={styles.statusLine}><AppText style={styles.eyebrow}>{lesson.lesson.toUpperCase()}</AppText><StatusTag label={getStatusLabel(lesson.status)} /></View>
         <AppText style={styles.title}>{lesson.date} · {lesson.time}</AppText>
-        <AppText style={styles.subtitle}>Trânsito urbano · {lesson.vehicle}</AppText>
+        <AppText style={styles.subtitle}>{lesson.vehicle}</AppText>
       </View>
 
-      <View style={styles.people}>
-        <SectionHeading title="Confirmação de presença" aside={`${confirmedCount} de 2`} />
-        <Participant name="Julia Martins" role="Aluno" initials="JM" confirmed={lesson.studentConfirmed} disabled={lesson.status !== 'scheduled'} onConfirm={() => confirmLesson(lesson.id, 'student')} />
-        <Participant name={lesson.teacherName} role="Instrutora" initials="AP" confirmed={lesson.teacherConfirmed} disabled={lesson.status !== 'scheduled'} onConfirm={() => confirmLesson(lesson.id, 'teacher')} />
-        <AppText style={styles.demoNote}>Demonstração: cada participante confirma na própria sessão quando houver autenticação conectada.</AppText>
-      </View>
+      {lesson.status === 'requested' && <View style={styles.requestNotice}><AppText style={styles.requestNoticeTitle}>Pedido enviado</AppText><AppText style={styles.requestNoticeText}>O instrutor ainda precisa confirmar este horário. Você poderá confirmar presença quando a aula for aceita.</AppText></View>}
+      {lesson.status === 'declined' && <View style={styles.declinedNotice}><AppText style={styles.requestNoticeTitle}>Horário não confirmado</AppText><AppText style={styles.requestNoticeText}>O instrutor não conseguiu aceitar este pedido. Escolha outro horário ou profissional.</AppText><ActionButton label="Buscar outro horário" variant="secondary" onPress={() => router.navigate('/(tabs)/teachers')} /></View>}
+
+      {lesson.status !== 'requested' && lesson.status !== 'declined' && (
+        <View style={styles.people}>
+          <SectionHeading title="Confirmação de presença" aside={`${confirmedCount} de 2`} />
+          <Participant name={lesson.studentName} role="Aluno" initials={getInitials(lesson.studentName)} confirmed={lesson.studentConfirmed} disabled={lesson.status !== 'scheduled'} onConfirm={() => confirmLesson(lesson.id, 'student')} />
+          <Participant name={lesson.teacherName} role="Instrutor(a)" initials={getInitials(lesson.teacherName)} confirmed={lesson.teacherConfirmed} disabled={lesson.status !== 'scheduled'} onConfirm={() => confirmLesson(lesson.id, 'teacher')} />
+          <AppText style={styles.demoNote}>Demonstração: cada participante confirma na própria sessão quando houver autenticação conectada.</AppText>
+        </View>
+      )}
 
       {lesson.status === 'scheduled' && (
         <View style={styles.startBlock}>
+          <View style={styles.readyPanel}><StatusTag label="PRONTA PARA COMEÇAR" /><AppText style={styles.requestNoticeText}>Confirme a presença dos dois participantes. A checagem de proximidade com o ESP32 será adicionada quando o dispositivo estiver integrado.</AppText></View>
           {attemptedStart && confirmedCount < 2 && <AppText style={styles.warning}>As duas confirmações são necessárias para iniciar.</AppText>}
           <ActionButton label={confirmedCount === 2 ? 'Iniciar aula' : 'Aguardando confirmações'} onPress={beginLesson} disabled={confirmedCount < 2} />
         </View>
@@ -86,13 +118,88 @@ export default function LessonScreen() {
         </View>
       )}
 
+      {lesson.status === 'completed' && role !== 'admin' && (
+        <LessonReviews
+          targetName={role === 'student' ? lesson.teacherName : lesson.studentName}
+          targetLabel={role === 'student' ? 'instrutor' : 'aluno'}
+          currentReview={lesson.reviews?.[role]}
+          otherReview={lesson.reviews?.[role === 'student' ? 'teacher' : 'student']}
+          onSubmit={(rating, comment) => submitLessonReview(lesson.id, role, rating, comment)}
+        />
+      )}
+
       <View style={styles.details}>
         <SectionHeading title="Detalhes" />
         <Detail label="Instrutor" value={lesson.teacherName} />
         <Detail label="Veículo" value={lesson.vehicle} />
-        <Detail label="Ponto de encontro" value="A combinar com o instrutor" />
+        <Detail label="Ponto de encontro" value={lesson.meetingPoint || 'A combinar com o instrutor'} />
+        {!!lesson.notes && <Detail label="Observações" value={lesson.notes} />}
       </View>
     </Screen>
+  );
+}
+
+function LessonReviews({ targetName, targetLabel, currentReview, otherReview, onSubmit }: {
+  targetName: string;
+  targetLabel: string;
+  currentReview?: LessonReview;
+  otherReview?: LessonReview;
+  onSubmit: (rating: number, comment: string) => void;
+}) {
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+
+  return (
+    <View style={styles.reviewsSection}>
+      <SectionHeading title="Avaliações da aula" />
+      {currentReview ? (
+        <ReviewSummary title={`Sua avaliação de ${targetName}`} review={currentReview} />
+      ) : (
+        <Card mode="outlined" style={styles.reviewCard}>
+          <Card.Content style={styles.reviewCardContent}>
+            <AppText style={styles.reviewPrompt}>Como foi sua experiência com {targetLabel === 'aluno' ? 'o aluno' : 'o instrutor'} {targetName}?</AppText>
+            <View style={styles.stars}>
+              {[1, 2, 3, 4, 5].map((value) => (
+                <IconButton
+                  key={value}
+                  accessibilityLabel={`Nota ${value} de 5`}
+                  icon={({ color, size }) => <SymbolView name={value <= rating ? starIcons.filled : starIcons.outline} tintColor={value <= rating ? '#D99A27' : color} size={size} />}
+                  size={26}
+                  onPress={() => setRating(value)}
+                />
+              ))}
+              <AppText style={styles.ratingValue}>{rating ? `${rating}/5` : 'Escolha uma nota'}</AppText>
+            </View>
+            <FormField
+              label="Comentário (opcional)"
+              accessibilityLabel="Comentário da avaliação"
+              multiline
+              numberOfLines={3}
+              onChangeText={setComment}
+              placeholder="Conte como foi a aula"
+              style={styles.reviewComment}
+              value={comment}
+            />
+            <ActionButton label="Enviar avaliação" onPress={() => onSubmit(rating, comment)} disabled={rating === 0} />
+          </Card.Content>
+        </Card>
+      )}
+      {otherReview ? (
+        <ReviewSummary title={`Avaliação de ${otherReview.authorName}`} review={otherReview} />
+      ) : (
+        <AppText style={styles.awaitingReview}>A avaliação do outro participante aparecerá aqui quando for enviada.</AppText>
+      )}
+      <AppText style={styles.reviewPrivacy}>As avaliações ficam registradas nesta aula e ajudam a construir a reputação de alunos e instrutores.</AppText>
+    </View>
+  );
+}
+
+function ReviewSummary({ title, review }: { title: string; review: LessonReview }) {
+  return (
+    <View style={styles.reviewSummary}>
+      <View style={styles.reviewSummaryTop}><AppText style={styles.reviewSummaryTitle}>{title}</AppText><AppText style={styles.reviewScore}>★ {review.rating}/5</AppText></View>
+      {!!review.comment && <AppText style={styles.reviewCommentText}>{review.comment}</AppText>}
+    </View>
   );
 }
 
@@ -135,6 +242,18 @@ function formatDuration(seconds: number) {
   return [hours, minutes, remainingSeconds].map((part) => String(part).padStart(2, '0')).join(':');
 }
 
+function getInitials(name: string) {
+  return name.split(' ').slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+}
+
+function getStatusLabel(status: 'requested' | 'declined' | 'scheduled' | 'in-progress' | 'completed') {
+  if (status === 'requested') return 'AGUARDANDO';
+  if (status === 'declined') return 'RECUSADA';
+  if (status === 'in-progress') return 'EM ANDAMENTO';
+  if (status === 'completed') return 'FINALIZADA';
+  return 'CONFIRMADA';
+}
+
 const styles = StyleSheet.create({
   heading: { marginTop: 20, marginBottom: 22, gap: 7 },
   statusLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -155,7 +274,26 @@ const styles = StyleSheet.create({
   confirmedText: { color: DriveColors.green },
   demoNote: { color: DriveColors.muted, fontSize: 10, lineHeight: 15, marginTop: 10 },
   startBlock: { marginBottom: 20 },
+  readyPanel: { backgroundColor: DriveColors.surfaceMuted, borderRadius: 9, padding: 13, gap: 8, marginBottom: 12 },
   warning: { color: DriveColors.danger, fontSize: 12, marginBottom: 9 },
+  requestNotice: { backgroundColor: DriveColors.surfaceMuted, borderRadius: 9, padding: 14, gap: 6, marginBottom: 20 },
+  declinedNotice: { backgroundColor: '#F7E9E7', borderRadius: 9, padding: 14, gap: 8, marginBottom: 20 },
+  requestNoticeTitle: { color: DriveColors.ink, fontSize: 14, fontWeight: '700' },
+  requestNoticeText: { color: DriveColors.muted, fontSize: 12, lineHeight: 17 },
+  reviewsSection: { marginBottom: 22 },
+  reviewCard: { borderColor: DriveColors.line, borderRadius: 9, backgroundColor: DriveColors.white, marginBottom: 10 },
+  reviewCardContent: { gap: 10 },
+  reviewPrompt: { color: DriveColors.ink, fontSize: 13, fontWeight: '600', lineHeight: 19 },
+  stars: { flexDirection: 'row', alignItems: 'center', marginLeft: -8 },
+  ratingValue: { color: DriveColors.muted, fontSize: 11, marginLeft: 5 },
+  reviewComment: { minHeight: 82 },
+  reviewSummary: { padding: 12, backgroundColor: DriveColors.surfaceMuted, borderRadius: 8, gap: 6, marginBottom: 8 },
+  reviewSummaryTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  reviewSummaryTitle: { flex: 1, color: DriveColors.ink, fontSize: 12, fontWeight: '700' },
+  reviewScore: { color: '#9A6900', fontSize: 12, fontWeight: '700' },
+  reviewCommentText: { color: DriveColors.muted, fontSize: 12, lineHeight: 17 },
+  awaitingReview: { color: DriveColors.muted, fontSize: 11, lineHeight: 16, marginBottom: 8 },
+  reviewPrivacy: { color: DriveColors.muted, fontSize: 10, lineHeight: 15 },
   activeBlock: { backgroundColor: DriveColors.ink, borderRadius: 10, padding: 17, marginBottom: 22 },
   activeTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: DriveColors.lime },
@@ -191,4 +329,7 @@ const styles = StyleSheet.create({
   detailLabel: { color: DriveColors.muted, fontSize: 11 },
   detailValue: { flex: 1, color: DriveColors.ink, fontSize: 11, fontWeight: '600', textAlign: 'right' },
   emptyTitle: { color: DriveColors.ink, fontSize: 20, fontWeight: '700', marginVertical: 20 },
+  emptyState: { alignItems: 'flex-start', paddingTop: 52, gap: 12 },
+  emptyIcon: { width: 52, height: 52, borderRadius: 16, backgroundColor: DriveColors.lime, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  emptyCopy: { color: DriveColors.muted, fontSize: 14, lineHeight: 20, marginBottom: 6 },
 });

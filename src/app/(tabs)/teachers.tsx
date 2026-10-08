@@ -13,7 +13,7 @@ const instructors = [
 ];
 
 export default function TeachersScreen() {
-  const { role, appointments, bookLesson } = useDriveApp();
+  const { role, appointments } = useDriveApp();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('Todos');
   const [approved, setApproved] = useState<string[]>([]);
@@ -47,8 +47,11 @@ export default function TeachersScreen() {
       )}
       <SectionHeading title={role === 'admin' ? 'Cadastros recentes' : 'Bem avaliados na sua região'} aside={`${filtered.length} perfis`} />
       {filtered.filter((person) => filter === 'Todos' || person.vehicle.toLowerCase().includes(filter.toLowerCase())).map((person) => {
-        const alreadyBooked = appointments.some((appointment) => appointment.teacherId === person.id);
+        const existingAppointment = appointments.find((appointment) => appointment.teacherId === person.id && ['requested', 'scheduled', 'in-progress'].includes(appointment.status));
         const alreadyApproved = approved.includes(person.id);
+        const submittedRatings = appointments.flatMap((appointment) => appointment.teacherId === person.id && appointment.reviews?.student ? [appointment.reviews.student.rating] : []);
+        const displayedRating = submittedRatings.length ? (submittedRatings.reduce((sum, rating) => sum + rating, 0) / submittedRatings.length).toFixed(1).replace('.', ',') : person.rating;
+        const displayedReviewCount = person.reviews + submittedRatings.length;
         return (
           <View key={person.id} style={styles.teacherRow}>
             <View style={styles.identityRow}>
@@ -57,7 +60,7 @@ export default function TeachersScreen() {
                 <AppText style={styles.name}>{person.name}</AppText>
                 <AppText style={styles.area}>{person.area}</AppText>
               </View>
-              <View style={styles.rating}><AppText style={styles.star}>★</AppText><AppText style={styles.ratingText}>{person.rating}</AppText><AppText style={styles.reviews}>({person.reviews})</AppText></View>
+              <View style={styles.rating}><AppText style={styles.star}>★</AppText><AppText style={styles.ratingText}>{displayedRating}</AppText><AppText style={styles.reviews}>({displayedReviewCount})</AppText></View>
             </View>
             <View style={styles.details}>
               <AppText style={styles.detail}>{person.vehicle}</AppText>
@@ -70,7 +73,12 @@ export default function TeachersScreen() {
                   <AppText style={[styles.approveText, alreadyApproved && styles.approvedText]}>{alreadyApproved ? 'Aprovado' : 'Revisar cadastro'}</AppText>
                 </Pressable>
               ) : (
-                <ActionButton label={alreadyBooked ? 'Aula solicitada' : 'Ver horários'} onPress={() => bookLesson(person.id, person.name, person.vehicle)} disabled={alreadyBooked} compact />
+                <ActionButton
+                  label={existingAppointment?.status === 'requested' ? 'Aguardando resposta' : existingAppointment ? 'Aula agendada' : 'Ver horários'}
+                  onPress={() => router.push({ pathname: '/booking', params: { teacherId: person.id, teacherName: person.name, vehicle: person.vehicle, area: person.area, price: person.price } })}
+                  disabled={Boolean(existingAppointment)}
+                  compact
+                />
               )}
             </View>
           </View>
@@ -83,24 +91,31 @@ export default function TeachersScreen() {
 }
 
 function StudentRoster() {
+  const { appointments } = useDriveApp();
+  const learners = [
+    ['JM', 'Julia Martins', '12 aulas · Prova prática', '60%'],
+    ['RC', 'Rafael Costa', '6 aulas · Fundamentos', '30%'],
+    ['LA', 'Lara Alves', '18 aulas · Revisão final', '90%'],
+    ['FN', 'Felipe Nunes', '3 aulas · Primeiros passos', '15%'],
+  ];
+
   return (
     <Screen>
       <TopBar roleLabel="Sua turma" />
       <View style={styles.heading}><AppText style={styles.title}>Meus alunos</AppText><AppText style={styles.subtitle}>Acompanhe o avanço de cada pessoa.</AppText></View>
       <FormField label="Buscar aluno" accessibilityLabel="Buscar aluno" placeholder="Nome do aluno" style={styles.search} />
       <SectionHeading title="Em andamento" aside="8 alunos" />
-      {[
-        ['JM', 'Julia Martins', '12 aulas · Prova prática', '60%'],
-        ['RC', 'Rafael Costa', '6 aulas · Fundamentos', '30%'],
-        ['LA', 'Lara Alves', '18 aulas · Revisão final', '90%'],
-        ['FN', 'Felipe Nunes', '3 aulas · Primeiros passos', '15%'],
-      ].map(([initials, name, detail, progress]) => (
-        <View key={name} style={styles.rosterRow}>
-          <View style={styles.avatar}><AppText style={styles.avatarText}>{initials}</AppText></View>
-          <View style={styles.identity}><AppText style={styles.name}>{name}</AppText><AppText style={styles.area}>{detail}</AppText></View>
-          <AppText style={styles.progress}>{progress}</AppText>
-        </View>
-      ))}
+      {learners.map(([initials, name, detail, progress]) => {
+        const ratings = appointments.flatMap((appointment) => appointment.studentName === name && appointment.reviews?.teacher ? [appointment.reviews.teacher.rating] : []);
+        const average = ratings.length ? (ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length).toFixed(1).replace('.', ',') : undefined;
+        return (
+          <View key={name} style={styles.rosterRow}>
+            <View style={styles.avatar}><AppText style={styles.avatarText}>{initials}</AppText></View>
+            <View style={styles.identity}><AppText style={styles.name}>{name}</AppText><AppText style={styles.area}>{detail}</AppText>{!!average && <AppText style={styles.studentRating}>★ {average}/5 · {ratings.length} avaliação{ratings.length === 1 ? '' : 'ões'}</AppText>}</View>
+            <AppText style={styles.progress}>{progress}</AppText>
+          </View>
+        );
+      })}
       <View style={styles.rosterLink}><ActionButton label="Ver agenda dos alunos" variant="secondary" onPress={() => router.navigate('/(tabs)/schedule')} /></View>
     </Screen>
   );
@@ -141,5 +156,6 @@ const styles = StyleSheet.create({
   disclaimer: { color: DriveColors.muted, fontSize: 11, lineHeight: 16, marginTop: 18 },
   rosterRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 11, borderBottomWidth: 1, borderBottomColor: DriveColors.line },
   progress: { color: DriveColors.green, fontSize: 13, fontWeight: '700' },
+  studentRating: { color: '#9A6900', fontSize: 10, marginTop: 3 },
   rosterLink: { marginTop: 18 },
 });

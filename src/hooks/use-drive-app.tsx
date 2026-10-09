@@ -1,146 +1,155 @@
-import { createContext, ReactNode, useContext, useState } from 'react';
+import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 
-export type Role = 'student' | 'teacher' | 'admin';
+import { api, ApiError, setApiToken, setUnauthorizedHandler } from '@/lib/api';
+import { clearToken, loadToken, saveToken } from '@/lib/session-storage';
+import type { Account, Appointment, AuthSession, LessonRequest, RegisterStudentInput, RegisterTeacherInput, Role } from '@/types/api';
 
-export type Appointment = {
-  id: number;
-  teacherId: string;
-  teacherName: string;
-  studentName: string;
-  lesson: string;
-  date: string;
-  time: string;
-  vehicle: string;
-  status: 'requested' | 'declined' | 'scheduled' | 'in-progress' | 'completed';
-  studentConfirmed: boolean;
-  teacherConfirmed: boolean;
-  meetingPoint?: string;
-  notes?: string;
-  price?: string;
-  reviews?: {
-    student?: LessonReview;
-    teacher?: LessonReview;
-  };
-  startedAt?: number;
-  durationSeconds?: number;
-};
-
-export type LessonReview = {
-  authorName: string;
-  rating: number;
-  comment: string;
-  submittedAt: number;
-};
-
-export type LessonRequest = Pick<Appointment, 'teacherId' | 'teacherName' | 'studentName' | 'lesson' | 'date' | 'time' | 'vehicle'> & {
-  meetingPoint: string;
-  notes: string;
-  price?: string;
-};
+export type { Appointment, LessonReview, Role } from '@/types/api';
 
 type DriveAppContextValue = {
-  role: Role;
+  /** A sessão salva já foi verificada (até lá o splash continua na tela). */
+  ready: boolean;
   authenticated: boolean;
+  user: Account | null;
+  role: Role;
   accountName: string;
   accountEmail: string;
   appointments: Appointment[];
-  signIn: (role: Role, name?: string, email?: string) => void;
+  signIn: (email: string, password: string) => Promise<void>;
+  registerStudent: (input: RegisterStudentInput) => Promise<void>;
+  /** Cria a conta do instrutor sem entrar ainda, para a tela mostrar o resumo do cadastro. */
+  registerTeacher: (input: RegisterTeacherInput) => Promise<AuthSession>;
+  startSession: (session: AuthSession) => Promise<void>;
   signOut: () => void;
-  setRole: (role: Role) => void;
-  requestLesson: (request: LessonRequest) => void;
-  respondToLesson: (appointmentId: number, accepted: boolean) => void;
-  setAvailability: (available: boolean) => void;
-  confirmLesson: (appointmentId: number, party: 'student' | 'teacher') => void;
-  startLesson: (appointmentId: number) => void;
-  finishLesson: (appointmentId: number) => void;
-  submitLessonReview: (appointmentId: number, author: 'student' | 'teacher', rating: number, comment: string) => void;
+  refreshAccount: () => Promise<void>;
+  refreshAppointments: () => Promise<void>;
+  requestLesson: (request: LessonRequest) => Promise<Appointment>;
+  respondToLesson: (appointmentId: number, accepted: boolean) => Promise<Appointment>;
+  setAvailability: (available: boolean) => Promise<void>;
+  confirmLesson: (appointmentId: number) => Promise<Appointment>;
+  startLesson: (appointmentId: number) => Promise<Appointment>;
+  finishLesson: (appointmentId: number) => Promise<Appointment>;
+  submitLessonReview: (appointmentId: number, rating: number, comment: string) => Promise<Appointment>;
 };
 
 const DriveAppContext = createContext<DriveAppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [role, setRoleState] = useState<Role>('student');
-  const [authenticated, setAuthenticated] = useState(false);
-  const [accountName, setAccountName] = useState('Julia Martins');
-  const [accountEmail, setAccountEmail] = useState('aluno@rota.app');
-  const [appointments, setAppointments] = useState<Appointment[]>([
-    { id: 1, teacherId: 'ana', teacherName: 'Ana Paula Ribeiro', studentName: 'Julia Martins', lesson: 'Aula prática · Trânsito urbano', date: 'Qui, 8 out', time: '14h30', vehicle: 'HB20 2023 · Automático', status: 'scheduled', studentConfirmed: false, teacherConfirmed: false },
-  ]);
-  const [, setAvailable] = useState(true);
+  const [ready, setReady] = useState(false);
+  const [user, setUser] = useState<Account | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
 
-  function signIn(nextRole: Role, name?: string, email?: string) {
-    setRoleState(nextRole);
-    setAccountName(name?.trim() || (nextRole === 'teacher' ? 'Marcos Vieira' : nextRole === 'admin' ? 'Equipe Rota' : 'Julia Martins'));
-    setAccountEmail(email?.trim() || (nextRole === 'teacher' ? 'instrutor@rota.app' : nextRole === 'admin' ? 'admin@rota.app' : 'aluno@rota.app'));
-    setAuthenticated(true);
+  const resetSession = useCallback(() => {
+    setApiToken(null);
+    setUser(null);
+    setAppointments([]);
+    clearToken();
+  }, []);
+
+  const refreshAppointments = useCallback(async () => {
+    const { appointments: list } = await api<{ appointments: Appointment[] }>('/appointments');
+    setAppointments(list);
+  }, []);
+
+  const refreshAccount = useCallback(async () => {
+    const { user: account } = await api<{ user: Account }>('/users/me');
+    setUser(account);
+  }, []);
+
+  // Restaura a sessão salva ao abrir o app.
+  useEffect(() => {
+    setUnauthorizedHandler(resetSession);
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await loadToken();
+        if (!token) return;
+        setApiToken(token);
+        const { user: account } = await api<{ user: Account }>('/users/me');
+        if (cancelled) return;
+        setUser(account);
+        await refreshAppointments().catch(() => undefined);
+      } catch (error) {
+        // 401: o handler já limpou a sessão. Sem conexão: abre na tela inicial e o token continua salvo.
+        if (!(error instanceof ApiError && error.status === 401)) setApiToken(null);
+      } finally {
+        if (!cancelled) setReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      setUnauthorizedHandler(null);
+    };
+  }, [resetSession, refreshAppointments]);
+
+  async function startSession(session: AuthSession) {
+    setApiToken(session.token);
+    await saveToken(session.token);
+    setAppointments([]);
+    setUser(session.user);
+    refreshAppointments().catch(() => undefined);
   }
 
-  function signOut() {
-    setAuthenticated(false);
-    setRoleState('student');
+  async function signIn(email: string, password: string) {
+    await startSession(await api<AuthSession>('/auth/login', { method: 'POST', body: { email, password } }));
   }
 
-  function setRole(nextRole: Role) {
-    setRoleState(nextRole);
-    setAccountName(nextRole === 'teacher' ? 'Marcos Vieira' : nextRole === 'admin' ? 'Equipe Rota' : 'Julia Martins');
-    setAccountEmail(nextRole === 'teacher' ? 'instrutor@rota.app' : nextRole === 'admin' ? 'admin@rota.app' : 'aluno@rota.app');
+  async function registerStudent(input: RegisterStudentInput) {
+    await startSession(await api<AuthSession>('/auth/register/student', { method: 'POST', body: input }));
   }
 
-  function requestLesson(request: LessonRequest) {
-    setAppointments((current) => [...current, {
-      ...request,
-      id: Date.now(),
-      status: 'requested',
-      studentConfirmed: false,
-      teacherConfirmed: false,
-    }]);
+  function registerTeacher(input: RegisterTeacherInput) {
+    return api<AuthSession>('/auth/register/teacher', { method: 'POST', body: input });
   }
 
-  function respondToLesson(appointmentId: number, accepted: boolean) {
-    setAppointments((current) => current.map((appointment) => appointment.id === appointmentId && appointment.status === 'requested'
-      ? { ...appointment, status: accepted ? 'scheduled' : 'declined' }
-      : appointment));
+  function upsertAppointment(appointment: Appointment) {
+    setAppointments((current) => current.some((item) => item.id === appointment.id)
+      ? current.map((item) => (item.id === appointment.id ? appointment : item))
+      : [...current, appointment]);
   }
 
-  function setAvailability(available: boolean) {
-    setAvailable(available);
+  async function postAppointment(path: string, body?: unknown) {
+    const { appointment } = await api<{ appointment: Appointment }>(path, { method: 'POST', body });
+    upsertAppointment(appointment);
+    return appointment;
   }
 
-  function confirmLesson(appointmentId: number, party: 'student' | 'teacher') {
-    setAppointments((current) => current.map((appointment) => appointment.id === appointmentId && appointment.status === 'scheduled'
-      ? { ...appointment, [party === 'student' ? 'studentConfirmed' : 'teacherConfirmed']: true }
-      : appointment));
+  async function setAvailability(available: boolean) {
+    await api('/teachers/me/availability', { method: 'PATCH', body: { available } });
+    setUser((current) => (current?.teacher ? { ...current, teacher: { ...current.teacher, available } } : current));
   }
 
-  function startLesson(appointmentId: number) {
-    setAppointments((current) => current.map((appointment) => appointment.id === appointmentId && appointment.status === 'scheduled' && appointment.studentConfirmed && appointment.teacherConfirmed
-      ? { ...appointment, status: 'in-progress', startedAt: Date.now() }
-      : appointment));
+  async function finishLesson(appointmentId: number) {
+    const appointment = await postAppointment(`/appointments/${appointmentId}/finish`);
+    refreshAccount().catch(() => undefined);
+    return appointment;
   }
 
-  function finishLesson(appointmentId: number) {
-    setAppointments((current) => current.map((appointment) => {
-      if (appointment.id !== appointmentId || appointment.status !== 'in-progress') return appointment;
-      const durationSeconds = appointment.startedAt ? Math.max(1, Math.floor((Date.now() - appointment.startedAt) / 1000)) : 0;
-      return { ...appointment, status: 'completed', durationSeconds };
-    }));
-  }
+  const value: DriveAppContextValue = {
+    ready,
+    authenticated: Boolean(user),
+    user,
+    role: user?.role ?? 'student',
+    accountName: user?.name ?? '',
+    accountEmail: user?.email ?? '',
+    appointments,
+    signIn,
+    registerStudent,
+    registerTeacher,
+    startSession,
+    signOut: resetSession,
+    refreshAccount,
+    refreshAppointments,
+    requestLesson: (request) => postAppointment('/appointments', request),
+    respondToLesson: (appointmentId, accepted) => postAppointment(`/appointments/${appointmentId}/respond`, { accepted }),
+    setAvailability,
+    confirmLesson: (appointmentId) => postAppointment(`/appointments/${appointmentId}/confirm`),
+    startLesson: (appointmentId) => postAppointment(`/appointments/${appointmentId}/start`),
+    finishLesson,
+    submitLessonReview: (appointmentId, rating, comment) => postAppointment(`/appointments/${appointmentId}/reviews`, { rating, comment }),
+  };
 
-  function submitLessonReview(appointmentId: number, author: 'student' | 'teacher', rating: number, comment: string) {
-    if (role !== author || !Number.isInteger(rating) || rating < 1 || rating > 5) return;
-    setAppointments((current) => current.map((appointment) => {
-      if (appointment.id !== appointmentId || appointment.status !== 'completed' || appointment.reviews?.[author]) return appointment;
-      return {
-        ...appointment,
-        reviews: {
-          ...appointment.reviews,
-          [author]: { authorName: accountName, rating, comment: comment.trim(), submittedAt: Date.now() },
-        },
-      };
-    }));
-  }
-
-  return <DriveAppContext.Provider value={{ role, authenticated, accountName, accountEmail, appointments, signIn, signOut, setRole, requestLesson, respondToLesson, setAvailability, confirmLesson, startLesson, finishLesson, submitLessonReview }}>{children}</DriveAppContext.Provider>;
+  return <DriveAppContext.Provider value={value}>{children}</DriveAppContext.Provider>;
 }
 
 export function useDriveApp() {

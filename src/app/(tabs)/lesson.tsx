@@ -1,5 +1,5 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { Card, IconButton } from 'react-native-paper';
@@ -7,31 +7,59 @@ import { Card, IconButton } from 'react-native-paper';
 import { ActionButton, AppText, BackBar, FormField, Screen, SectionHeading, StatusTag, TopBar } from '@/components/drive-ui';
 import { DriveColors } from '@/constants/drive-theme';
 import { LessonReview, useDriveApp } from '@/hooks/use-drive-app';
+import { errorMessage } from '@/lib/api';
 
 const starIcons = {
   filled: { ios: 'star.fill', android: 'star', web: 'star' },
   outline: { ios: 'star', android: 'star_outline', web: 'star_outline' },
 } as const;
 
+/** Intervalo para ver as ações do outro participante (confirmação, início, fim). */
+const SYNC_INTERVAL_MS = 5000;
+
 export default function LessonScreen() {
-  const { role, accountName, appointments, confirmLesson, startLesson, finishLesson, submitLessonReview } = useDriveApp();
+  const { role, user, appointments, refreshAppointments, confirmLesson, startLesson, finishLesson, submitLessonReview } = useDriveApp();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const selectedLesson = id ? appointments.find((appointment) => String(appointment.id) === id) : undefined;
   const activeLesson = appointments.find((appointment) => {
     if (!['requested', 'scheduled', 'in-progress'].includes(appointment.status)) return false;
-    if (role === 'teacher') return appointment.teacherName === accountName;
-    if (role === 'student') return appointment.studentName === accountName;
+    if (role === 'teacher') return appointment.teacherId === user?.id;
+    if (role === 'student') return appointment.studentId === user?.id;
     return false;
   });
   const lesson = selectedLesson ?? activeLesson;
   const [now, setNow] = useState(0);
   const [attemptedStart, setAttemptedStart] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState('');
+  const waitingOnOtherParty = lesson?.status === 'requested' || lesson?.status === 'scheduled' || lesson?.status === 'in-progress';
 
   useEffect(() => {
     if (lesson?.status !== 'in-progress') return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [lesson?.status]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshAppointments().catch(() => undefined);
+      if (!waitingOnOtherParty) return;
+      const timer = setInterval(() => refreshAppointments().catch(() => undefined), SYNC_INTERVAL_MS);
+      return () => clearInterval(timer);
+    }, [refreshAppointments, waitingOnOtherParty]),
+  );
+
+  async function runAction(action: () => Promise<unknown>) {
+    setActionError('');
+    setBusy(true);
+    try {
+      await action();
+    } catch (caught) {
+      setActionError(errorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (!lesson) {
     return (
@@ -61,7 +89,7 @@ export default function LessonScreen() {
       setAttemptedStart(true);
       return;
     }
-    startLesson(lesson.id);
+    runAction(() => startLesson(lesson.id));
   }
 
   return (
@@ -79,17 +107,19 @@ export default function LessonScreen() {
       {lesson.status !== 'requested' && lesson.status !== 'declined' && (
         <View style={styles.people}>
           <SectionHeading title="Confirmação de presença" aside={`${confirmedCount} de 2`} />
-          <Participant name={lesson.studentName} role="Aluno" initials={getInitials(lesson.studentName)} confirmed={lesson.studentConfirmed} disabled={lesson.status !== 'scheduled'} onConfirm={() => confirmLesson(lesson.id, 'student')} />
-          <Participant name={lesson.teacherName} role="Instrutor(a)" initials={getInitials(lesson.teacherName)} confirmed={lesson.teacherConfirmed} disabled={lesson.status !== 'scheduled'} onConfirm={() => confirmLesson(lesson.id, 'teacher')} />
-          <AppText style={styles.demoNote}>Demonstração: cada participante confirma na própria sessão quando houver autenticação conectada.</AppText>
+          <Participant name={lesson.studentName} role="Aluno" initials={getInitials(lesson.studentName)} confirmed={lesson.studentConfirmed} disabled={busy || lesson.status !== 'scheduled' || role !== 'student'} onConfirm={() => runAction(() => confirmLesson(lesson.id))} />
+          <Participant name={lesson.teacherName} role="Instrutor(a)" initials={getInitials(lesson.teacherName)} confirmed={lesson.teacherConfirmed} disabled={busy || lesson.status !== 'scheduled' || role !== 'teacher'} onConfirm={() => runAction(() => confirmLesson(lesson.id))} />
+          <AppText style={styles.demoNote}>Cada participante confirma a própria presença no seu aparelho.</AppText>
         </View>
       )}
+
+      {!!actionError && <AppText style={styles.warning}>{actionError}</AppText>}
 
       {lesson.status === 'scheduled' && (
         <View style={styles.startBlock}>
           <View style={styles.readyPanel}><StatusTag label="PRONTA PARA COMEÇAR" /><AppText style={styles.requestNoticeText}>Confirme a presença dos dois participantes. A checagem de proximidade com o ESP32 será adicionada quando o dispositivo estiver integrado.</AppText></View>
           {attemptedStart && confirmedCount < 2 && <AppText style={styles.warning}>As duas confirmações são necessárias para iniciar.</AppText>}
-          <ActionButton label={confirmedCount === 2 ? 'Iniciar aula' : 'Aguardando confirmações'} onPress={beginLesson} disabled={confirmedCount < 2} />
+          <ActionButton label={confirmedCount === 2 ? 'Iniciar aula' : 'Aguardando confirmações'} onPress={beginLesson} disabled={confirmedCount < 2 || role === 'admin'} loading={busy} />
         </View>
       )}
 
@@ -99,7 +129,7 @@ export default function LessonScreen() {
           <AppText style={styles.timer}>{formatDuration(elapsedSeconds)}</AppText>
           <AppText style={styles.gpsPending}>Duração em tempo real · GPS aguardando integração</AppText>
           <View style={styles.gpsBanner}><StatusTag label="GPS / IoT" /><AppText style={styles.gpsBannerText}>O percurso e a velocidade serão registrados quando o dispositivo de localização estiver conectado.</AppText></View>
-          <View style={styles.finishButton}><ActionButton label="Finalizar aula" onPress={() => finishLesson(lesson.id)} variant="secondary" /></View>
+          {role !== 'admin' && <View style={styles.finishButton}><ActionButton label="Finalizar aula" onPress={() => runAction(() => finishLesson(lesson.id))} variant="secondary" loading={busy} /></View>}
         </View>
       )}
 
@@ -124,7 +154,7 @@ export default function LessonScreen() {
           targetLabel={role === 'student' ? 'instrutor' : 'aluno'}
           currentReview={lesson.reviews?.[role]}
           otherReview={lesson.reviews?.[role === 'student' ? 'teacher' : 'student']}
-          onSubmit={(rating, comment) => submitLessonReview(lesson.id, role, rating, comment)}
+          onSubmit={(rating, comment) => submitLessonReview(lesson.id, rating, comment)}
         />
       )}
 
@@ -144,10 +174,24 @@ function LessonReviews({ targetName, targetLabel, currentReview, otherReview, on
   targetLabel: string;
   currentReview?: LessonReview;
   otherReview?: LessonReview;
-  onSubmit: (rating: number, comment: string) => void;
+  onSubmit: (rating: number, comment: string) => Promise<unknown>;
 }) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+
+  async function send() {
+    setError('');
+    setSending(true);
+    try {
+      await onSubmit(rating, comment);
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <View style={styles.reviewsSection}>
@@ -180,7 +224,8 @@ function LessonReviews({ targetName, targetLabel, currentReview, otherReview, on
               style={styles.reviewComment}
               value={comment}
             />
-            <ActionButton label="Enviar avaliação" onPress={() => onSubmit(rating, comment)} disabled={rating === 0} />
+            {!!error && <AppText style={styles.warning}>{error}</AppText>}
+            <ActionButton label="Enviar avaliação" onPress={send} disabled={rating === 0} loading={sending} />
           </Card.Content>
         </Card>
       )}

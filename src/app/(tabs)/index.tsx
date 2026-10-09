@@ -1,32 +1,52 @@
-import { Link, router } from 'expo-router';
+import { Link, router, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Card, ProgressBar } from 'react-native-paper';
 
 import { ActionButton, AppText, Screen, SectionHeading, StatusTag, TopBar } from '@/components/drive-ui';
 import { DriveColors } from '@/constants/drive-theme';
+import { useApiData } from '@/hooks/use-api-data';
 import { Role, useDriveApp } from '@/hooks/use-drive-app';
+import { formatLongDate, todayIso } from '@/lib/dates';
+import type { AdminOverview, TeacherStudent } from '@/types/api';
 
 const roleLabels: Record<Role, string> = { student: 'Aluno', teacher: 'Instrutor', admin: 'Administrador' };
 
+function greetingFor(date = new Date()) {
+  const hour = date.getHours();
+  return hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+}
+
 export default function HomeScreen() {
-  const { role, appointments, accountName } = useDriveApp();
+  const { role, user, appointments, accountName, refreshAppointments, refreshAccount } = useDriveApp();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshAppointments().catch(() => undefined);
+      refreshAccount().catch(() => undefined);
+    }, [refreshAppointments, refreshAccount]),
+  );
+
   if (role === 'teacher') return <TeacherDashboard accountName={accountName} />;
   if (role === 'admin') return <AdminDashboard />;
 
-  const nextLesson = appointments[0];
+  const nextLesson = appointments.find((appointment) => ['in-progress', 'scheduled', 'requested'].includes(appointment.status));
+  const completed = user?.student?.completedLessons ?? 0;
+  const goal = user?.student?.lessonsGoal ?? 20;
+  const progress = Math.min(1, completed / goal);
 
   return (
     <Screen>
       <TopBar roleLabel={roleLabels.student} />
       <View style={styles.greeting}>
-        <AppText style={styles.eyebrow}>QUARTA-FEIRA, 7 DE OUTUBRO</AppText>
+        <AppText style={styles.eyebrow}>{formatLongDate().toUpperCase()}</AppText>
         <AppText style={styles.title}>Oi, {accountName.split(' ')[0]}.</AppText>
         <AppText style={styles.subtitle}>Um passo de cada vez. Você está indo bem.</AppText>
       </View>
 
       <View style={styles.hero}>
         <View style={styles.heroTop}>
-          <StatusTag label="PRÓXIMA AULA" dark />
+          <StatusTag label={nextLesson?.status === 'requested' ? 'PEDIDO ENVIADO' : 'PRÓXIMA AULA'} dark />
           <AppText style={styles.heroDate}>{nextLesson?.date ?? 'Escolha um horário'}</AppText>
         </View>
         <AppText style={styles.heroTime}>{nextLesson?.time ?? 'Sua agenda está livre'}</AppText>
@@ -40,18 +60,18 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.progressSection}>
-        <SectionHeading title="Seu progresso" aside="Ver detalhes" />
+        <SectionHeading title="Seu progresso" aside={`Categoria ${user?.student?.category ?? 'B'}`} />
         <View style={styles.progressRow}>
           <View>
-            <AppText style={styles.progressNumber}>12 <AppText style={styles.progressTotal}>/ 20 aulas</AppText></AppText>
-            <AppText style={styles.progressCaption}>Etapa prática em andamento</AppText>
+            <AppText style={styles.progressNumber}>{completed} <AppText style={styles.progressTotal}>/ {goal} aulas</AppText></AppText>
+            <AppText style={styles.progressCaption}>{completed >= goal ? 'Etapa prática concluída' : completed > 0 ? 'Etapa prática em andamento' : 'Etapa prática a começar'}</AppText>
           </View>
-          <AppText style={styles.progressPercent}>60%</AppText>
+          <AppText style={styles.progressPercent}>{Math.round(progress * 100)}%</AppText>
         </View>
-        <ProgressBar progress={0.6} color={DriveColors.green} style={styles.progressTrack} />
+        <ProgressBar progress={progress} color={DriveColors.green} style={styles.progressTrack} />
         <View style={styles.milestones}>
           <Milestone label="Legislação" value="Concluída" complete />
-          <Milestone label="Prática" value="Em andamento" />
+          <Milestone label="Prática" value={completed >= goal ? 'Concluída' : completed > 0 ? 'Em andamento' : 'Pendente'} complete={completed >= goal} />
           <Milestone label="Prova" value="Pendente" />
         </View>
       </View>
@@ -89,36 +109,51 @@ function Milestone({ label, value, complete }: { label: string; value: string; c
 }
 
 function TeacherDashboard({ accountName }: { accountName: string }) {
+  const { user, appointments } = useDriveApp();
+  const { data } = useApiData<{ students: TeacherStudent[] }>('/teachers/me/students');
+  const today = todayIso();
+  const todayLessons = appointments
+    .filter((appointment) => appointment.teacherId === user?.id && appointment.lessonDate === today && ['scheduled', 'in-progress', 'completed'].includes(appointment.status))
+    .sort((a, b) => a.time.localeCompare(b.time));
+  const nextToday = todayLessons.find((appointment) => appointment.status !== 'completed');
+  const pendingRequests = appointments.filter((appointment) => appointment.teacherId === user?.id && appointment.status === 'requested').length;
+  const vehicle = user?.teacher?.vehicle;
+  const students = data?.students ?? [];
+
   return (
     <Screen>
       <TopBar roleLabel={roleLabels.teacher} />
       <View style={styles.greeting}>
-        <AppText style={styles.eyebrow}>QUARTA-FEIRA, 7 DE OUTUBRO</AppText>
-        <AppText style={styles.title}>Bom dia, {accountName.split(' ')[0]}.</AppText>
-        <AppText style={styles.subtitle}>Sua agenda de hoje está pronta.</AppText>
+        <AppText style={styles.eyebrow}>{formatLongDate().toUpperCase()}</AppText>
+        <AppText style={styles.title}>{greetingFor()}, {accountName.split(' ')[0]}.</AppText>
+        <AppText style={styles.subtitle}>{pendingRequests > 0 ? `Você tem ${pendingRequests} pedido${pendingRequests === 1 ? '' : 's'} de aula para responder.` : 'Sua agenda de hoje está pronta.'}</AppText>
       </View>
       <View style={styles.teacherHero}>
         <AppText style={styles.teacherHeroLabel}>AULAS DE HOJE</AppText>
-        <AppText style={styles.teacherHeroNumber}>4 <AppText style={styles.teacherHeroSuffix}>aulas</AppText></AppText>
-        <AppText style={styles.teacherHeroInfo}>Próxima às 10h30 · Julia Martins</AppText>
+        <AppText style={styles.teacherHeroNumber}>{todayLessons.length} <AppText style={styles.teacherHeroSuffix}>aula{todayLessons.length === 1 ? '' : 's'}</AppText></AppText>
+        <AppText style={styles.teacherHeroInfo}>{nextToday ? `Próxima às ${nextToday.time} · ${nextToday.studentName}` : 'Nenhuma aula pendente hoje'}</AppText>
         <ActionButton label="Abrir agenda" variant="light" onPress={() => router.navigate('/(tabs)/schedule')} />
       </View>
       <View style={styles.progressSection}>
-        <SectionHeading title="Seus alunos" aside="Ver todos" />
-        <PersonRow initials="JM" name="Julia Martins" detail="12 aulas · Categoria B" status="Em prática" />
-        <PersonRow initials="RC" name="Rafael Costa" detail="6 aulas · Categoria B" status="Iniciante" />
-        <PersonRow initials="LA" name="Lara Alves" detail="18 aulas · Categoria AB" status="Prova em breve" />
+        <SectionHeading title="Seus alunos" aside={students.length > 3 ? 'Ver todos' : undefined} />
+        {students.slice(0, 3).map((student) => (
+          <PersonRow key={student.id} initials={student.initials} name={student.name} detail={`${student.completedLessons} aula${student.completedLessons === 1 ? '' : 's'} · Categoria ${student.category}`} status={`${student.progress}%`} />
+        ))}
+        {!!data && students.length === 0 && <AppText style={styles.personDetail}>Seus alunos aparecem aqui depois do primeiro pedido de aula.</AppText>}
       </View>
       <View style={styles.vehicleStrip}>
         <AppText style={styles.vehicleIcon}>▣</AppText>
-        <View style={styles.findCopy}><AppText style={styles.findTitle}>Seu veículo</AppText><AppText style={styles.findSubtitle}>Chevrolet Onix · 2022 · Manual</AppText></View>
-        <StatusTag label="ATIVO" />
+        <View style={styles.findCopy}><AppText style={styles.findTitle}>Seu veículo</AppText><AppText style={styles.findSubtitle}>{vehicle?.label ?? 'Nenhum veículo cadastrado'}</AppText></View>
+        {!!vehicle && <StatusTag label={vehicle.status === 'active' ? 'ATIVO' : vehicle.status === 'pending' ? 'EM ANÁLISE' : 'RECUSADO'} />}
       </View>
     </Screen>
   );
 }
 
 function AdminDashboard() {
+  const { data: overview } = useApiData<AdminOverview>('/admin/overview');
+  const pending = overview?.pendingItems ?? [];
+
   return (
     <Screen>
       <TopBar roleLabel={roleLabels.admin} />
@@ -128,15 +163,16 @@ function AdminDashboard() {
         <AppText style={styles.subtitle}>Acompanhe a operação da plataforma.</AppText>
       </View>
       <View style={styles.metrics}>
-        <Metric value="248" label="Alunos ativos" />
-        <Metric value="32" label="Instrutores" />
-        <Metric value="86" label="Aulas no mês" />
+        <Metric value={overview ? String(overview.students) : '–'} label="Alunos" />
+        <Metric value={overview ? String(overview.teachers) : '–'} label="Instrutores" />
+        <Metric value={overview ? String(overview.lessonsThisMonth) : '–'} label="Aulas no mês" />
       </View>
       <View style={styles.progressSection}>
-        <SectionHeading title="Pendências" aside="3 novas" />
-        <ReviewRow initials="CF" title="Cadastro de instrutor" detail="Carlos Ferreira · Categoria B" />
-        <ReviewRow initials="ON" title="Veículo para aprovação" detail="Honda City · 2023 · Placa final 42" />
-        <ReviewRow initials="MA" title="Verificação de documento" detail="Marina Andrade · CNH enviada" />
+        <SectionHeading title="Pendências" aside={`${pending.length} nova${pending.length === 1 ? '' : 's'}`} />
+        {pending.map((item) => (
+          <ReviewRow key={`${item.kind}-${item.id}`} initials={item.initials} title={item.title} detail={item.detail} onPress={() => router.navigate(item.kind === 'teacher' ? '/(tabs)/teachers' : '/(tabs)/account')} />
+        ))}
+        {!!overview && pending.length === 0 && <AppText style={styles.personDetail}>Nenhum cadastro ou veículo aguardando análise.</AppText>}
       </View>
       <Link href="/(tabs)/account" asChild>
         <Pressable style={styles.adminLink} accessibilityRole="button">
@@ -162,8 +198,8 @@ function Metric({ value, label }: { value: string; label: string }) {
   return <View style={styles.metric}><AppText style={styles.metricValue}>{value}</AppText><AppText style={styles.metricLabel}>{label}</AppText></View>;
 }
 
-function ReviewRow({ initials, title, detail }: { initials: string; title: string; detail: string }) {
-  return <View style={styles.reviewRow}><View style={styles.reviewAvatar}><AppText style={styles.reviewInitials}>{initials}</AppText></View><View style={styles.personCopy}><AppText style={styles.personName}>{title}</AppText><AppText style={styles.personDetail}>{detail}</AppText></View><AppText style={styles.findArrow}>›</AppText></View>;
+function ReviewRow({ initials, title, detail, onPress }: { initials: string; title: string; detail: string; onPress: () => void }) {
+  return <Pressable accessibilityRole="button" onPress={onPress} style={styles.reviewRow}><View style={styles.reviewAvatar}><AppText style={styles.reviewInitials}>{initials}</AppText></View><View style={styles.personCopy}><AppText style={styles.personName}>{title}</AppText><AppText style={styles.personDetail}>{detail}</AppText></View><AppText style={styles.findArrow}>›</AppText></Pressable>;
 }
 
 const styles = StyleSheet.create({

@@ -1,35 +1,34 @@
-import { Redirect, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { SegmentedButtons } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActionButton, AppText, Brand, FormField, ScreenWidth } from '@/components/drive-ui';
 import { DriveColors } from '@/constants/drive-theme';
-import { Role, useDriveApp } from '@/hooks/use-drive-app';
-
-const roles: { key: Role; label: string }[] = [
-  { key: 'student', label: 'Aluno' },
-  { key: 'teacher', label: 'Instrutor' },
-  { key: 'admin', label: 'Admin' },
-];
+import { useDriveApp } from '@/hooks/use-drive-app';
+import { errorMessage } from '@/lib/api';
 
 export default function LoginScreen() {
-  const { authenticated, signIn } = useDriveApp();
-  const [role, setRole] = useState<Role>('student');
-  const [email, setEmail] = useState('aluno@rota.app');
-  const [password, setPassword] = useState('123456');
+  const { signIn } = useDriveApp();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  if (authenticated) return <Redirect href="/(tabs)" />;
-
-  function enterApp() {
+  // Depois do login, as rotas protegidas do layout levam o usuário para o app.
+  async function enterApp() {
     if (!email.trim() || !password.trim()) {
       setError('Preencha e-mail e senha para continuar.');
       return;
     }
-    signIn(role, undefined, email);
-    router.replace('/(tabs)');
+    setError('');
+    setSubmitting(true);
+    try {
+      await signIn(email.trim(), password);
+    } catch (caught) {
+      setError(errorMessage(caught));
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -70,8 +69,7 @@ export default function LoginScreen() {
                 />
               </View>
               {!!error && <AppText style={styles.error}>{error}</AppText>}
-              <ActionButton label="Entrar" onPress={enterApp} />
-              <AppText style={styles.demoNote}>Acesso demonstrativo. Use qualquer e-mail e senha.</AppText>
+              <ActionButton label="Entrar" onPress={enterApp} loading={submitting} />
               <Pressable accessibilityRole="button" onPress={() => router.push('/register')} style={styles.registerLink}>
                 <AppText style={styles.registerText}>Ainda não tem conta? <AppText style={styles.registerStrong}>Cadastre-se</AppText></AppText>
               </Pressable>

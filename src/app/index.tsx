@@ -1,15 +1,11 @@
-import { Redirect, router } from 'expo-router';
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ActionButton, AppText, Brand, ScreenWidth } from '@/components/drive-ui';
 import { DriveColors } from '@/constants/drive-theme';
-import { useDriveApp } from '@/hooks/use-drive-app';
 
 export default function IndexRoute() {
-  const { authenticated } = useDriveApp();
-  if (authenticated) return <Redirect href="/(tabs)" />;
-
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.content}>

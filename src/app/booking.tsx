@@ -6,12 +6,8 @@ import { Card, SegmentedButtons } from 'react-native-paper';
 import { ActionButton, AppText, BackBar, FormField, Screen, SectionHeading, StatusTag } from '@/components/drive-ui';
 import { DriveColors } from '@/constants/drive-theme';
 import { useDriveApp } from '@/hooks/use-drive-app';
-
-const dateOptions = [
-  { value: 'Qui, 8 out', label: 'Qui 8' },
-  { value: 'Sex, 9 out', label: 'Sex 9' },
-  { value: 'Sáb, 10 out', label: 'Sáb 10' },
-];
+import { errorMessage } from '@/lib/api';
+import { upcomingDays } from '@/lib/dates';
 
 const timeOptions = [
   { value: '09h às 11h', label: '09h–11h' },
@@ -33,27 +29,37 @@ export default function BookingScreen() {
     area?: string;
     price?: string;
   }>();
-  const { accountName, requestLesson } = useDriveApp();
+  const { requestLesson } = useDriveApp();
+  const [dateOptions] = useState(() => upcomingDays(3));
   const [date, setDate] = useState(dateOptions[0].value);
   const [time, setTime] = useState(timeOptions[0].value);
   const [lesson, setLesson] = useState(lessonOptions[0].value);
   const [meetingPoint, setMeetingPoint] = useState(area ?? '');
   const [notes, setNotes] = useState('');
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  function sendRequest() {
-    requestLesson({
-      teacherId: teacherId ?? 'ana',
-      teacherName: teacherName ?? 'Ana Paula Ribeiro',
-      studentName: accountName,
-      vehicle: vehicle ?? 'Veículo a combinar',
-      date,
-      time,
-      lesson: `Aula prática · ${lesson}`,
-      meetingPoint: meetingPoint.trim(),
-      notes: notes.trim(),
-      price,
-    });
-    router.replace('/(tabs)/schedule');
+  async function sendRequest() {
+    if (!teacherId) {
+      setError('Escolha um instrutor antes de pedir a aula.');
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+    try {
+      await requestLesson({
+        teacherId: Number(teacherId),
+        date,
+        time,
+        lesson: `Aula prática · ${lesson}`,
+        meetingPoint: meetingPoint.trim(),
+        notes: notes.trim(),
+      });
+      router.replace('/(tabs)/schedule');
+    } catch (caught) {
+      setError(errorMessage(caught));
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -68,13 +74,13 @@ export default function BookingScreen() {
       <Card mode="outlined" style={styles.teacherCard}>
         <Card.Content style={styles.teacherContent}>
           <View style={styles.teacherCopy}>
-            <AppText style={styles.teacherName}>{teacherName ?? 'Ana Paula Ribeiro'}</AppText>
-            <AppText style={styles.teacherDetail}>{vehicle ?? 'HB20 · Automático'}</AppText>
+            <AppText style={styles.teacherName}>{teacherName ?? 'Instrutor'}</AppText>
+            <AppText style={styles.teacherDetail}>{vehicle ?? 'Veículo a combinar'}</AppText>
             <AppText style={styles.teacherDetail}>{area ?? 'Região a combinar'}</AppText>
           </View>
           <View style={styles.priceBlock}>
             <StatusTag label="POR AULA" />
-            <AppText style={styles.price}>{price ?? 'R$ 85'}</AppText>
+            <AppText style={styles.price}>{price ?? '—'}</AppText>
           </View>
         </Card.Content>
       </Card>
@@ -115,7 +121,8 @@ export default function BookingScreen() {
       </View>
 
       <View style={styles.submitBlock}>
-        <ActionButton label="Enviar pedido de aula" onPress={sendRequest} />
+        {!!error && <AppText style={styles.error}>{error}</AppText>}
+        <ActionButton label="Enviar pedido de aula" onPress={sendRequest} loading={submitting} />
         <AppText style={styles.helper}>A aula só entra como confirmada depois da resposta do instrutor.</AppText>
       </View>
     </Screen>
@@ -138,4 +145,5 @@ const styles = StyleSheet.create({
   notes: { minHeight: 88 },
   submitBlock: { marginTop: 2, marginBottom: 14 },
   helper: { color: DriveColors.muted, fontSize: 11, lineHeight: 16, textAlign: 'center', marginTop: 10 },
+  error: { color: DriveColors.danger, fontSize: 12, lineHeight: 17, marginBottom: 10 },
 });

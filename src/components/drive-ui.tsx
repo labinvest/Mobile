@@ -160,7 +160,7 @@ function ProfileDrawerButton() {
               <Drawer.Item
                 label="Sair da conta"
                 icon={({ color, size }) => <SymbolView name={drawerIcons.signOut} tintColor={color} size={size} />}
-                onPress={() => { setVisible(false); signOut(); router.replace('/login'); }}
+                onPress={() => { setVisible(false); signOut(); }}
               />
               <PaperText variant="labelSmall" style={styles.drawerBrand}>ROTA · AULAS DE DIREÇÃO</PaperText>
             </View>
@@ -197,7 +197,7 @@ export function SectionHeading({ title, aside }: { title: string; aside?: string
   );
 }
 
-export function ActionButton({ label, onPress, variant = 'primary', compact = false, disabled = false }: { label: string; onPress?: () => void; variant?: 'primary' | 'secondary' | 'light'; compact?: boolean; disabled?: boolean }) {
+export function ActionButton({ label, onPress, variant = 'primary', compact = false, disabled = false, loading = false }: { label: string; onPress?: () => void; variant?: 'primary' | 'secondary' | 'light'; compact?: boolean; disabled?: boolean; loading?: boolean }) {
   const mode = variant === 'primary' ? 'contained' : variant === 'secondary' ? 'contained-tonal' : 'outlined';
   const buttonColor = variant === 'primary' ? DriveColors.green : variant === 'secondary' ? DriveColors.surfaceMuted : DriveColors.white;
   const textColor = variant === 'primary' ? DriveColors.white : variant === 'light' ? DriveColors.green : DriveColors.ink;
@@ -208,7 +208,8 @@ export function ActionButton({ label, onPress, variant = 'primary', compact = fa
       buttonColor={buttonColor}
       textColor={textColor}
       compact={compact}
-      disabled={disabled}
+      disabled={disabled || loading}
+      loading={loading}
       onPress={onPress}
       style={[styles.button, compact && styles.buttonCompact]}
       contentStyle={compact ? styles.buttonContentCompact : styles.buttonContent}

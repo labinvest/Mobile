@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SegmentedButtons } from 'react-native-paper';
@@ -6,25 +5,35 @@ import { SegmentedButtons } from 'react-native-paper';
 import { ActionButton, AppText, BackBar, FormField, Screen } from '@/components/drive-ui';
 import { DriveColors } from '@/constants/drive-theme';
 import { useDriveApp } from '@/hooks/use-drive-app';
+import { errorMessage } from '@/lib/api';
+import type { Category } from '@/types/api';
 
 export default function StudentRegistrationScreen() {
-  const { signIn } = useDriveApp();
+  const { registerStudent } = useDriveApp();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [cpf, setCpf] = useState('');
   const [city, setCity] = useState('');
   const [password, setPassword] = useState('');
-  const [category, setCategory] = useState('B');
+  const [category, setCategory] = useState<Category>('B');
   const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  function createAccount() {
+  // Com a conta criada, as rotas protegidas do layout levam o aluno para o app.
+  async function createAccount() {
     if (!name.trim() || !email.includes('@') || phone.replace(/\D/g, '').length < 10 || cpf.replace(/\D/g, '').length !== 11 || !city.trim() || password.length < 6) {
       setError('Confira os dados obrigatórios, o e-mail, o telefone, o CPF e a senha com pelo menos 6 caracteres.');
       return;
     }
-    signIn('student', name, email);
-    router.replace('/(tabs)');
+    setError('');
+    setSubmitting(true);
+    try {
+      await registerStudent({ name, email, phone, cpf, city, category, password });
+    } catch (caught) {
+      setError(errorMessage(caught));
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -46,12 +55,12 @@ export default function StudentRegistrationScreen() {
         <AppText style={styles.categoryLabel}>Categoria desejada</AppText>
         <SegmentedButtons
           value={category}
-          onValueChange={setCategory}
+          onValueChange={(value) => setCategory(value as Category)}
           buttons={['A', 'B', 'AB'].map((option) => ({ value: option, label: option }))}
         />
         <FormField label="Crie uma senha" autoComplete="new-password" onChangeText={setPassword} placeholder="Pelo menos 6 caracteres" secureTextEntry value={password} />
         {!!error && <AppText style={styles.error}>{error}</AppText>}
-        <ActionButton label="Criar conta de aluno" onPress={createAccount} />
+        <ActionButton label="Criar conta de aluno" onPress={createAccount} loading={submitting} />
         <AppText style={styles.note}>Ao continuar, você poderá completar preferências e agendar sua primeira aula.</AppText>
       </View>
     </Screen>

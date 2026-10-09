@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Checkbox, Chip } from 'react-native-paper';
@@ -6,20 +5,32 @@ import { Checkbox, Chip } from 'react-native-paper';
 import { ActionButton, AppText, BackBar, FormField, Screen, StatusTag } from '@/components/drive-ui';
 import { DriveColors } from '@/constants/drive-theme';
 import { useDriveApp } from '@/hooks/use-drive-app';
+import { errorMessage } from '@/lib/api';
+import type { AuthSession, Category, Transmission } from '@/types/api';
 
 const steps = ['Dados pessoais', 'Habilitação', 'Veículo'];
 
+/** Leva o formulário para a etapa do campo que a API recusou. */
+function stepForError(message: string) {
+  const text = message.toLowerCase();
+  if (/(nome|e-mail|celular|cpf|cidade|senha|conta)/.test(text)) return 0;
+  if (/(cnh|experiência)/.test(text)) return 1;
+  return 2;
+}
+
 export default function ProfessionalRegistrationScreen() {
-  const { signIn } = useDriveApp();
+  const { registerTeacher, startSession } = useDriveApp();
   const [step, setStep] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
+  const [session, setSession] = useState<AuthSession | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [entering, setEntering] = useState(false);
   const [name, setName] = useState('');
   const [cpf, setCpf] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
   const [cnh, setCnh] = useState('');
-  const [category, setCategory] = useState('B');
+  const [category, setCategory] = useState<Category>('B');
   const [cnhExpiry, setCnhExpiry] = useState('');
   const [experience, setExperience] = useState('');
   const [vehicle, setVehicle] = useState('');
@@ -27,10 +38,35 @@ export default function ProfessionalRegistrationScreen() {
   const [plate, setPlate] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirmation, setPasswordConfirmation] = useState('');
-  const [transmission, setTransmission] = useState('Manual');
+  const [transmission, setTransmission] = useState<Transmission>('Manual');
   const [dualControl, setDualControl] = useState(false);
   const [terms, setTerms] = useState(false);
   const [error, setError] = useState('');
+
+  async function submitRegistration() {
+    setSubmitting(true);
+    try {
+      setSession(await registerTeacher({
+        name, email, phone, cpf, city, password,
+        cnhNumber: cnh, cnhCategory: category, cnhExpiry, experience,
+        vehicle: { model: vehicle, year, plate, transmission, dualControl },
+        termsAccepted: terms,
+      }));
+    } catch (caught) {
+      const message = errorMessage(caught);
+      setError(message);
+      setStep(stepForError(message));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Ao entrar, as rotas protegidas do layout levam o instrutor para o app.
+  async function enterApp() {
+    if (!session) return;
+    setEntering(true);
+    await startSession(session);
+  }
 
   function nextStep() {
     const hasPersonalData = name.trim() && cpf.replace(/\D/g, '').length === 11 && email.includes('@') && phone.replace(/\D/g, '').length >= 10 && city.trim() && password.length >= 6 && password === passwordConfirmation;
@@ -52,10 +88,10 @@ export default function ProfessionalRegistrationScreen() {
 
     setError('');
     if (step < 2) setStep((current) => current + 1);
-    else setSubmitted(true);
+    else submitRegistration();
   }
 
-  if (submitted) {
+  if (session) {
     return (
       <Screen>
         <BackBar title="Cadastro profissional" />
@@ -71,8 +107,8 @@ export default function ProfessionalRegistrationScreen() {
           <ReviewStep number="2" text="Validação dos dados do veículo e dos requisitos de aula" />
           <ReviewStep number="3" text="Liberação do perfil profissional para os alunos" />
         </View>
-        <AppText style={styles.note}>A análise de documentos e a verificação oficial serão conectadas ao serviço de cadastro.</AppText>
-          <View style={styles.successButton}><ActionButton label="Entrar no ambiente demonstrativo" onPress={() => { signIn('teacher', name, email); router.replace('/(tabs)'); }} /></View>
+        <AppText style={styles.note}>Enquanto o cadastro estiver em análise, seu perfil não aparece nas buscas dos alunos.</AppText>
+        <View style={styles.successButton}><ActionButton label="Entrar no app" onPress={enterApp} loading={entering} /></View>
       </Screen>
     );
   }
@@ -106,7 +142,7 @@ export default function ProfessionalRegistrationScreen() {
         <View style={styles.form}>
           <FormField label="Número de registro da CNH" keyboardType="numeric" onChangeText={setCnh} placeholder="Registro da habilitação" value={cnh} />
           <AppText style={styles.fieldLabel}>Categoria habilitada</AppText>
-          <View style={styles.options}>{['A', 'B', 'AB'].map((option) => <Choice key={option} label={option} selected={category === option} onPress={() => setCategory(option)} />)}</View>
+          <View style={styles.options}>{(['A', 'B', 'AB'] as const).map((option) => <Choice key={option} label={option} selected={category === option} onPress={() => setCategory(option)} />)}</View>
           <FormField label="Validade da CNH" keyboardType="numbers-and-punctuation" onChangeText={setCnhExpiry} placeholder="DD/MM/AAAA" value={cnhExpiry} />
           <FormField label="Tempo de experiência como instrutor" keyboardType="numeric" onChangeText={setExperience} placeholder="Ex.: 5 anos" value={experience} />
           <View style={styles.documentNote}><StatusTag label="DOCUMENTOS" /><AppText style={styles.documentText}>O envio de arquivos da CNH e credenciais será habilitado na integração de documentos.</AppText></View>
@@ -121,7 +157,7 @@ export default function ProfessionalRegistrationScreen() {
             <View style={styles.half}><FormField label="Placa" autoCapitalize="characters" onChangeText={setPlate} placeholder="ABC1D23" value={plate} /></View>
           </View>
           <AppText style={styles.fieldLabel}>Câmbio</AppText>
-          <View style={styles.options}>{['Manual', 'Automático'].map((option) => <Choice key={option} label={option} selected={transmission === option} onPress={() => setTransmission(option)} />)}</View>
+          <View style={styles.options}>{(['Manual', 'Automático'] as const).map((option) => <Choice key={option} label={option} selected={transmission === option} onPress={() => setTransmission(option)} />)}</View>
           <CheckRow checked={dualControl} onPress={() => setDualControl((value) => !value)} title="Veículo equipado com duplo comando" detail="Obrigatório para aulas práticas de direção." />
           <CheckRow checked={terms} onPress={() => setTerms((value) => !value)} title="Confirmo que os dados estão corretos" detail="A documentação será validada antes da publicação do perfil." />
         </View>
@@ -130,9 +166,9 @@ export default function ProfessionalRegistrationScreen() {
       {!!error && <AppText style={styles.error}>{error}</AppText>}
       <View style={styles.navigation}>
         {step > 0 && <ActionButton label="Voltar etapa" onPress={() => { setError(''); setStep((current) => current - 1); }} variant="secondary" />}
-        <View style={styles.nextButton}><ActionButton label={step === 2 ? 'Enviar para análise' : 'Continuar'} onPress={nextStep} /></View>
+        <View style={styles.nextButton}><ActionButton label={step === 2 ? 'Enviar para análise' : 'Continuar'} onPress={nextStep} loading={submitting} /></View>
       </View>
-      <AppText style={styles.note}>Seus dados são de demonstração neste protótipo. Ainda não há envio ou armazenamento seguro.</AppText>
+      <AppText style={styles.note}>Seus dados ficam salvos na sua conta e passam por análise antes de o perfil ser liberado.</AppText>
     </Screen>
   );
 }

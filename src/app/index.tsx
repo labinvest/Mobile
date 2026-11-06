@@ -1,62 +1,64 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ActionButton, AppText, Brand, ScreenWidth } from '@/components/drive-ui';
-import { DriveColors } from '@/constants/drive-theme';
+import { Brand } from '@/components/brand';
+import { Button, Icon, Text, type IconName } from '@/components/ui';
+import { colors, gutter, radius, space } from '@/theme/tokens';
 
-export default function IndexRoute() {
+const VALUES: { icon: IconName; title: string; text: string }[] = [
+  { icon: 'account-search-outline', title: 'Instrutores perto de você', text: 'Compare avaliações, carro e valor antes de escolher.' },
+  { icon: 'calendar-check-outline', title: 'Horários de verdade', text: 'Veja a agenda do instrutor e peça a aula em poucos toques.' },
+  { icon: 'chart-donut', title: 'Sua evolução registrada', text: 'Cada aula concluída conta no seu progresso.' },
+];
+
+/** Primeira tela sem sessão: o que é o Rota e os dois caminhos (criar conta / entrar). */
+export default function WelcomeScreen() {
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safe}>
+      <StatusBar style="light" />
       <View style={styles.content}>
-        <View style={styles.header}><Brand /><AppText style={styles.headerLabel}>AULAS DE DIREÇÃO</AppText></View>
+        <Brand inverse />
+
         <View style={styles.hero}>
-          <AppText style={styles.eyebrow}>APRENDER. PRATICAR. CONQUISTAR.</AppText>
-          <AppText style={styles.title}>Sua CNH começa com uma boa aula.</AppText>
-          <AppText style={styles.subtitle}>Conecte-se a instrutores independentes e avance no seu tempo.</AppText>
-          <View style={styles.routeCard}>
-            <View style={styles.routeHeader}><AppText style={styles.routeLabel}>SEU PRÓXIMO DESTINO</AppText><AppText style={styles.routeNumber}>01 / 03</AppText></View>
-            <View style={styles.routeLine}>
-              <View style={styles.routeDot} /><View style={styles.routeDash} /><View style={styles.routeDash} /><View style={styles.routeDash} /><View style={styles.routeDestination} />
-            </View>
-            <View style={styles.routeFooter}><AppText style={styles.routeStart}>Primeira aula</AppText><AppText style={styles.routeEnd}>Sua habilitação</AppText></View>
+          <View style={styles.road} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+            {[0, 1, 2, 3, 4].map((dash) => <View key={dash} style={styles.dash} />)}
           </View>
+          <Text variant="display" tone="inverse" accessibilityRole="header">Aprenda a dirigir com quem ensina de verdade.</Text>
+          <Text variant="body" tone="inverseMuted">O Rota conecta quem está tirando a CNH a instrutores autônomos aprovados pela nossa equipe.</Text>
         </View>
+
+        <View style={styles.values}>
+          {VALUES.map((value) => (
+            <View key={value.title} style={styles.value}>
+              <View style={styles.valueIcon}><Icon name={value.icon} size={22} color={colors.accent} /></View>
+              <View style={styles.flex}>
+                <Text variant="bodyStrong" tone="inverse">{value.title}</Text>
+                <Text variant="footnote" tone="inverseMuted">{value.text}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+
         <View style={styles.actions}>
-          <ActionButton label="Começar agora" onPress={() => router.push('/login')} />
-          <Pressable accessibilityRole="button" onPress={() => router.push('/login')} style={styles.loginLink}>
-            <AppText style={styles.loginLinkText}>Já tem conta? <AppText style={styles.loginLinkStrong}>Entrar</AppText></AppText>
-          </Pressable>
+          <Button label="Criar conta" variant="accent" size="lg" trailingIcon="arrow-right" onPress={() => router.push('/register')} fullWidth />
+          <Button label="Já tenho conta" variant="inverse" size="lg" onPress={() => router.push('/login')} fullWidth />
         </View>
-        <AppText style={styles.footer}>Instrutores autônomos. Mais liberdade no seu caminho.</AppText>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: DriveColors.ink },
-  content: { flex: 1, width: '100%', maxWidth: ScreenWidth, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 18, paddingBottom: 16 },
-  header: { minHeight: 42, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerLabel: { color: '#D6E1D8', fontSize: 10, fontWeight: '700' },
-  hero: { flex: 1, justifyContent: 'center', paddingVertical: 34 },
-  eyebrow: { color: DriveColors.lime, fontSize: 11, fontWeight: '700', marginBottom: 16 },
-  title: { maxWidth: 470, color: DriveColors.white, fontSize: 42, lineHeight: 47, fontWeight: '700' },
-  subtitle: { maxWidth: 400, color: '#D6E1D8', fontSize: 16, lineHeight: 23, marginTop: 14 },
-  routeCard: { marginTop: 34, padding: 16, backgroundColor: '#2C3A31', borderRadius: 10 },
-  routeHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  routeLabel: { color: '#D6E1D8', fontSize: 10, fontWeight: '700' },
-  routeNumber: { color: DriveColors.lime, fontSize: 11, fontWeight: '700' },
-  routeLine: { height: 36, flexDirection: 'row', alignItems: 'center', gap: 8 },
-  routeDot: { width: 11, height: 11, borderRadius: 6, backgroundColor: DriveColors.lime },
-  routeDash: { width: 30, height: 2, backgroundColor: '#758579' },
-  routeDestination: { width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: DriveColors.lime },
-  routeFooter: { flexDirection: 'row', justifyContent: 'space-between' },
-  routeStart: { color: DriveColors.white, fontSize: 12, fontWeight: '600' },
-  routeEnd: { color: '#D6E1D8', fontSize: 12 },
-  actions: { gap: 12 },
-  loginLink: { alignSelf: 'center', minHeight: 40, justifyContent: 'center' },
-  loginLinkText: { color: '#D6E1D8', fontSize: 13 },
-  loginLinkStrong: { color: DriveColors.lime, fontWeight: '700' },
-  footer: { textAlign: 'center', color: '#A7B6AB', fontSize: 11, marginTop: 'auto', paddingTop: 18 },
+  flex: { flex: 1 },
+  safe: { flex: 1, backgroundColor: colors.asphalt },
+  content: { flex: 1, paddingHorizontal: gutter, paddingTop: space.lg, paddingBottom: space.lg, gap: space.xxl },
+  hero: { flex: 1, justifyContent: 'flex-end', gap: space.md },
+  road: { flexDirection: 'row', gap: space.sm, marginBottom: space.sm },
+  dash: { width: 28, height: 4, borderRadius: 2, backgroundColor: colors.accent },
+  values: { gap: space.lg },
+  value: { flexDirection: 'row', gap: space.md, alignItems: 'center' },
+  valueIcon: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.asphaltRaised, alignItems: 'center', justifyContent: 'center' },
+  actions: { gap: space.md },
 });

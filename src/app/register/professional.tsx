@@ -1,14 +1,26 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { Checkbox, Chip } from 'react-native-paper';
+import { useForm, type FieldPath } from 'react-hook-form';
+import { StyleSheet, View } from 'react-native';
 
-import { ActionButton, AppText, BackBar, FormField, Screen, StatusTag } from '@/components/drive-ui';
-import { DriveColors } from '@/constants/drive-theme';
+import { ControlledCheckbox, ControlledChoice, ControlledField, PasswordField } from '@/components/forms/controlled-field';
+import { BottomBar, Button, Header, Icon, Notice, Screen, Surface, Text } from '@/components/ui';
 import { useDriveApp } from '@/hooks/use-drive-app';
 import { errorMessage } from '@/lib/api';
+import { haptic } from '@/lib/haptics';
+import { maskCpf, maskDate, maskPhone } from '@/lib/masks';
+import { teacherSignupSchema, type TeacherSignupForm } from '@/lib/validation';
 import type { AuthSession, Category, Transmission } from '@/types/api';
+import { colors, radius, space } from '@/theme/tokens';
 
-const steps = ['Dados pessoais', 'Habilitação', 'Veículo'];
+const STEPS: { title: string; hint: string; fields: FieldPath<TeacherSignupForm>[] }[] = [
+  { title: 'Seus dados', hint: 'Usados para contato e para a análise do cadastro.', fields: ['name', 'cpf', 'email', 'phone', 'city', 'password', 'passwordConfirmation'] },
+  { title: 'Habilitação', hint: 'Conferimos estes dados antes de liberar seu perfil.', fields: ['cnhNumber', 'cnhCategory', 'cnhExpiry', 'experience'] },
+  { title: 'Veículo de aula', hint: 'O carro que os alunos vão usar nas aulas.', fields: ['vehicleModel', 'vehicleYear', 'plate', 'transmission', 'dualControl', 'termsAccepted'] },
+];
+
+const CATEGORIES = [{ value: 'B', label: 'B' }, { value: 'A', label: 'A' }, { value: 'AB', label: 'AB' }];
+const TRANSMISSIONS = [{ value: 'Manual', label: 'Manual' }, { value: 'Automático', label: 'Automático' }];
 
 /** Leva o formulário para a etapa do campo que a API recusou. */
 function stepForError(message: string) {
@@ -18,221 +30,146 @@ function stepForError(message: string) {
   return 2;
 }
 
-export default function ProfessionalRegistrationScreen() {
+export default function TeacherSignupScreen() {
   const { registerTeacher, startSession } = useDriveApp();
   const [step, setStep] = useState(0);
   const [session, setSession] = useState<AuthSession | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [entering, setEntering] = useState(false);
-  const [name, setName] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [city, setCity] = useState('');
-  const [cnh, setCnh] = useState('');
-  const [category, setCategory] = useState<Category>('B');
-  const [cnhExpiry, setCnhExpiry] = useState('');
-  const [experience, setExperience] = useState('');
-  const [vehicle, setVehicle] = useState('');
-  const [year, setYear] = useState('');
-  const [plate, setPlate] = useState('');
-  const [password, setPassword] = useState('');
-  const [passwordConfirmation, setPasswordConfirmation] = useState('');
-  const [transmission, setTransmission] = useState<Transmission>('Manual');
-  const [dualControl, setDualControl] = useState(false);
-  const [terms, setTerms] = useState(false);
   const [error, setError] = useState('');
+  const [entering, setEntering] = useState(false);
+  const { control, trigger, handleSubmit, formState, getValues } = useForm<TeacherSignupForm>({
+    resolver: zodResolver(teacherSignupSchema),
+    mode: 'onTouched',
+    defaultValues: {
+      name: '', cpf: '', email: '', phone: '', city: '', password: '', passwordConfirmation: '',
+      cnhNumber: '', cnhCategory: 'B', cnhExpiry: '', experience: '',
+      vehicleModel: '', vehicleYear: '', plate: '', transmission: 'Manual', dualControl: false, termsAccepted: false,
+    },
+  });
 
-  async function submitRegistration() {
-    setSubmitting(true);
+  const submit = handleSubmit(async (values) => {
+    setError('');
     try {
       setSession(await registerTeacher({
-        name, email, phone, cpf, city, password,
-        cnhNumber: cnh, cnhCategory: category, cnhExpiry, experience,
-        vehicle: { model: vehicle, year, plate, transmission, dualControl },
-        termsAccepted: terms,
+        name: values.name.trim(), email: values.email, phone: values.phone, cpf: values.cpf, city: values.city.trim(), password: values.password,
+        cnhNumber: values.cnhNumber, cnhCategory: values.cnhCategory as Category, cnhExpiry: values.cnhExpiry, experience: values.experience.trim(),
+        vehicle: { model: values.vehicleModel.trim(), year: values.vehicleYear, plate: values.plate, transmission: values.transmission as Transmission, dualControl: values.dualControl },
+        termsAccepted: values.termsAccepted,
       }));
+      haptic.success();
     } catch (caught) {
+      haptic.error();
       const message = errorMessage(caught);
       setError(message);
       setStep(stepForError(message));
-    } finally {
-      setSubmitting(false);
     }
-  }
+  });
 
-  // Ao entrar, as rotas protegidas do layout levam o instrutor para o app.
-  async function enterApp() {
-    if (!session) return;
-    setEntering(true);
-    await startSession(session);
-  }
-
-  function nextStep() {
-    const hasPersonalData = name.trim() && cpf.replace(/\D/g, '').length === 11 && email.includes('@') && phone.replace(/\D/g, '').length >= 10 && city.trim() && password.length >= 6 && password === passwordConfirmation;
-    const hasLicenseData = cnh.trim() && cnhExpiry.trim() && experience.trim();
-    const hasVehicleData = vehicle.trim() && year.trim() && plate.trim() && dualControl && terms;
-
-    if (step === 0 && !hasPersonalData) {
-      setError('Preencha os dados de contato e use uma senha com pelo menos 6 caracteres.');
+  async function next() {
+    if (!(await trigger(STEPS[step].fields))) {
+      haptic.error();
       return;
     }
-    if (step === 1 && !hasLicenseData) {
-      setError('Informe os dados da CNH e seu tempo de experiência.');
-      return;
-    }
-    if (step === 2 && !hasVehicleData) {
-      setError('Informe o veículo e confirme os requisitos para aulas práticas.');
-      return;
-    }
-
     setError('');
-    if (step < 2) setStep((current) => current + 1);
-    else submitRegistration();
+    if (step < STEPS.length - 1) setStep(step + 1);
+    else submit();
+  }
+
+  function back() {
+    setError('');
+    setStep(step - 1);
   }
 
   if (session) {
     return (
-      <Screen>
-        <BackBar title="Cadastro profissional" />
-        <View style={styles.successMark}><AppText style={styles.successCheck}>✓</AppText></View>
-        <View style={styles.successHeading}>
-          <StatusTag label="CADASTRO RECEBIDO" />
-          <AppText style={styles.title}>Obrigado, {name.split(' ')[0]}.</AppText>
-          <AppText style={styles.subtitle}>Seu perfil profissional está pronto para análise.</AppText>
+      <Screen
+        footer={<BottomBar><Button label="Entrar no app" size="lg" loading={entering} onPress={() => { setEntering(true); startSession(session); }} fullWidth /></BottomBar>}>
+        <View style={styles.success}>
+          <View style={styles.successIcon}><Icon name="check" size={36} color={colors.onBrand} /></View>
+          <Text variant="title1" align="center">Cadastro enviado, {getValues('name').split(' ')[0]}!</Text>
+          <Text variant="callout" tone="muted" align="center">Seu perfil fica oculto para os alunos até a equipe Rota aprovar os dados e o veículo.</Text>
         </View>
-        <View style={styles.reviewPanel}>
-          <AppText style={styles.reviewTitle}>Próximas etapas</AppText>
-          <ReviewStep number="1" text="Conferência dos dados da CNH e categoria informada" />
-          <ReviewStep number="2" text="Validação dos dados do veículo e dos requisitos de aula" />
-          <ReviewStep number="3" text="Liberação do perfil profissional para os alunos" />
-        </View>
-        <AppText style={styles.note}>Enquanto o cadastro estiver em análise, seu perfil não aparece nas buscas dos alunos.</AppText>
-        <View style={styles.successButton}><ActionButton label="Entrar no app" onPress={enterApp} loading={entering} /></View>
+        <Surface style={styles.next}>
+          <Text variant="headline">Enquanto isso</Text>
+          {['Defina seu valor e os horários da semana em Agenda', 'O andamento da análise aparece na sua Agenda', 'Depois disso, os pedidos chegam direto no app'].map((item, index) => (
+            <View key={item} style={styles.nextRow}>
+              <View style={styles.nextNumber}><Text variant="caption" tone="brand">{index + 1}</Text></View>
+              <Text variant="callout" tone="secondary" style={styles.flex}>{item}</Text>
+            </View>
+          ))}
+        </Surface>
       </Screen>
     );
   }
 
+  const current = STEPS[step];
   return (
-    <Screen>
-      <BackBar title="Cadastro profissional" />
-      <View style={styles.heading}>
-        <AppText style={styles.eyebrow}>INSTRUTOR AUTÔNOMO · ETAPA {step + 1} DE 3</AppText>
-        <AppText style={styles.title}>{steps[step]}</AppText>
-        <AppText style={styles.subtitle}>Seu perfil passa por uma análise antes de aparecer para os alunos.</AppText>
+    <Screen
+      header={<Header title="Conta de instrutor" onBack={step > 0 ? back : undefined} />}
+      footer={
+        <BottomBar>
+          <Button label={step === STEPS.length - 1 ? 'Enviar para análise' : 'Continuar'} size="lg" trailingIcon={step === STEPS.length - 1 ? 'send-outline' : 'arrow-right'} loading={formState.isSubmitting} onPress={next} fullWidth />
+        </BottomBar>
+      }>
+      <View style={styles.progress} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: STEPS.length, now: step + 1 }} accessibilityLabel={`Etapa ${step + 1} de ${STEPS.length}`}>
+        {STEPS.map((item, index) => <View key={item.title} style={[styles.segment, index <= step && styles.segmentOn]} />)}
       </View>
-      <View style={styles.stepTrack}>{steps.map((label, index) => <View key={label} style={[styles.stepSegment, index <= step && styles.stepSegmentActive]} />)}</View>
-      <View style={styles.stepLabels}>{steps.map((label, index) => <AppText key={label} style={[styles.stepLabel, index === step && styles.stepLabelActive]}>{label}</AppText>)}</View>
+      <View style={styles.heading}>
+        <Text variant="overline" tone="brand">Etapa {step + 1} de {STEPS.length}</Text>
+        <Text variant="title1" accessibilityRole="header">{current.title}</Text>
+        <Text variant="callout" tone="muted">{current.hint}</Text>
+      </View>
 
       {step === 0 && (
-        <View style={styles.form}>
-          <FormField label="Nome completo" autoComplete="name" autoCapitalize="words" onChangeText={setName} placeholder="Nome como consta no documento" value={name} />
-          <FormField label="CPF" keyboardType="numeric" onChangeText={setCpf} placeholder="000.000.000-00" value={cpf} />
-          <FormField label="E-mail profissional" autoCapitalize="none" autoComplete="email" keyboardType="email-address" onChangeText={setEmail} placeholder="voce@email.com" value={email} />
-          <View style={styles.row}>
-            <View style={styles.half}><FormField label="Celular" keyboardType="phone-pad" onChangeText={setPhone} placeholder="(11) 99999-9999" value={phone} /></View>
-            <View style={styles.half}><FormField label="Cidade de atendimento" autoCapitalize="words" onChangeText={setCity} placeholder="Cidade" value={city} /></View>
-          </View>
-          <FormField label="Crie uma senha" autoComplete="new-password" onChangeText={setPassword} placeholder="Pelo menos 6 caracteres" secureTextEntry value={password} />
-          <FormField label="Confirme sua senha" autoComplete="new-password" onChangeText={setPasswordConfirmation} placeholder="Digite a senha novamente" secureTextEntry value={passwordConfirmation} />
-        </View>
+        <>
+          <ControlledField control={control} name="name" label="Nome completo" icon="account-outline" placeholder="Como na sua CNH" autoComplete="name" autoCapitalize="words" />
+          <ControlledField control={control} name="cpf" label="CPF" icon="card-account-details-outline" placeholder="000.000.000-00" keyboardType="number-pad" mask={maskCpf} />
+          <ControlledField control={control} name="email" label="E-mail" icon="email-outline" placeholder="voce@email.com" autoCapitalize="none" autoComplete="email" keyboardType="email-address" />
+          <ControlledField control={control} name="phone" label="Celular" icon="cellphone" placeholder="(11) 99999-9999" keyboardType="phone-pad" mask={maskPhone} />
+          <ControlledField control={control} name="city" label="Cidade onde atende" icon="map-marker-outline" placeholder="Ex.: São Paulo" autoCapitalize="words" />
+          <PasswordField control={control} name="password" label="Crie uma senha" placeholder="Pelo menos 6 caracteres" autoComplete="new-password" />
+          <PasswordField control={control} name="passwordConfirmation" label="Repita a senha" placeholder="Digite a senha de novo" autoComplete="new-password" />
+        </>
       )}
 
       {step === 1 && (
-        <View style={styles.form}>
-          <FormField label="Número de registro da CNH" keyboardType="numeric" onChangeText={setCnh} placeholder="Registro da habilitação" value={cnh} />
-          <AppText style={styles.fieldLabel}>Categoria habilitada</AppText>
-          <View style={styles.options}>{(['A', 'B', 'AB'] as const).map((option) => <Choice key={option} label={option} selected={category === option} onPress={() => setCategory(option)} />)}</View>
-          <FormField label="Validade da CNH" keyboardType="numbers-and-punctuation" onChangeText={setCnhExpiry} placeholder="DD/MM/AAAA" value={cnhExpiry} />
-          <FormField label="Tempo de experiência como instrutor" keyboardType="numeric" onChangeText={setExperience} placeholder="Ex.: 5 anos" value={experience} />
-          <View style={styles.documentNote}><StatusTag label="DOCUMENTOS" /><AppText style={styles.documentText}>O envio de arquivos da CNH e credenciais será habilitado na integração de documentos.</AppText></View>
-        </View>
+        <>
+          <ControlledField control={control} name="cnhNumber" label="Número de registro da CNH" icon="card-account-details-outline" placeholder="Só os números" keyboardType="number-pad" maxLength={11} />
+          <ControlledChoice control={control} name="cnhCategory" label="Categoria em que você ensina" options={CATEGORIES} />
+          <ControlledField control={control} name="cnhExpiry" label="Validade da CNH" icon="calendar-outline" placeholder="DD/MM/AAAA" keyboardType="number-pad" mask={maskDate} />
+          <ControlledField control={control} name="experience" label="Tempo como instrutor" icon="medal-outline" placeholder="Ex.: 5 anos" helper="Só o número também vale: 5 vira “5 anos”." />
+          <Notice tone="info" message="O envio de fotos da CNH e de credenciais ainda não está disponível no app. A equipe pode pedir os documentos durante a análise." />
+        </>
       )}
 
       {step === 2 && (
-        <View style={styles.form}>
-          <FormField label="Modelo do veículo" onChangeText={setVehicle} placeholder="Ex.: Hyundai HB20" value={vehicle} />
+        <>
+          <ControlledField control={control} name="vehicleModel" label="Modelo" icon="car-outline" placeholder="Ex.: Hyundai HB20" />
           <View style={styles.row}>
-            <View style={styles.half}><FormField label="Ano" keyboardType="numeric" onChangeText={setYear} placeholder="2023" value={year} /></View>
-            <View style={styles.half}><FormField label="Placa" autoCapitalize="characters" onChangeText={setPlate} placeholder="ABC1D23" value={plate} /></View>
+            <View style={styles.flex}><ControlledField control={control} name="vehicleYear" label="Ano" placeholder="2023" keyboardType="number-pad" maxLength={4} /></View>
+            <View style={styles.flex}><ControlledField control={control} name="plate" label="Placa" placeholder="ABC1D23" autoCapitalize="characters" maxLength={8} /></View>
           </View>
-          <AppText style={styles.fieldLabel}>Câmbio</AppText>
-          <View style={styles.options}>{(['Manual', 'Automático'] as const).map((option) => <Choice key={option} label={option} selected={transmission === option} onPress={() => setTransmission(option)} />)}</View>
-          <CheckRow checked={dualControl} onPress={() => setDualControl((value) => !value)} title="Veículo equipado com duplo comando" detail="Obrigatório para aulas práticas de direção." />
-          <CheckRow checked={terms} onPress={() => setTerms((value) => !value)} title="Confirmo que os dados estão corretos" detail="A documentação será validada antes da publicação do perfil." />
-        </View>
+          <ControlledChoice control={control} name="transmission" label="Câmbio" options={TRANSMISSIONS} />
+          <ControlledCheckbox control={control} name="dualControl" title="O carro tem duplo comando" detail="Pedal de freio do lado do instrutor, obrigatório nas aulas práticas." />
+          <ControlledCheckbox control={control} name="termsAccepted" title="Confirmo que os dados são verdadeiros" detail="Dados incorretos podem impedir a aprovação do perfil." />
+        </>
       )}
 
-      {!!error && <AppText style={styles.error}>{error}</AppText>}
-      <View style={styles.navigation}>
-        {step > 0 && <ActionButton label="Voltar etapa" onPress={() => { setError(''); setStep((current) => current - 1); }} variant="secondary" />}
-        <View style={styles.nextButton}><ActionButton label={step === 2 ? 'Enviar para análise' : 'Continuar'} onPress={nextStep} loading={submitting} /></View>
-      </View>
-      <AppText style={styles.note}>Seus dados ficam salvos na sua conta e passam por análise antes de o perfil ser liberado.</AppText>
+      {!!error && <Notice tone="danger" title="Revise o cadastro" message={error} style={styles.error} />}
     </Screen>
   );
 }
 
-function Choice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
-  return <Chip compact mode={selected ? 'flat' : 'outlined'} selected={selected} showSelectedCheck={false} onPress={onPress} style={[styles.option, selected && styles.optionSelected]} textStyle={[styles.optionText, selected && styles.optionTextSelected]}>{label}</Chip>;
-}
-
-function CheckRow({ checked, onPress, title, detail }: { checked: boolean; onPress: () => void; title: string; detail: string }) {
-  return (
-    <View style={styles.checkRow}>
-      <Checkbox status={checked ? 'checked' : 'unchecked'} color={DriveColors.green} uncheckedColor={DriveColors.muted} onPress={onPress} />
-      <Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} onPress={onPress} style={styles.checkCopy}>
-        <AppText style={styles.checkTitle}>{title}</AppText><AppText style={styles.checkDetail}>{detail}</AppText>
-      </Pressable>
-    </View>
-  );
-}
-
-function ReviewStep({ number, text }: { number: string; text: string }) {
-  return <View style={styles.reviewStep}><View style={styles.reviewNumber}><AppText style={styles.reviewNumberText}>{number}</AppText></View><AppText style={styles.reviewStepText}>{text}</AppText></View>;
-}
-
 const styles = StyleSheet.create({
-  heading: { marginTop: 24, marginBottom: 18, gap: 6 },
-  eyebrow: { color: DriveColors.green, fontSize: 10, fontWeight: '700' },
-  title: { color: DriveColors.ink, fontSize: 27, lineHeight: 33, fontWeight: '700' },
-  subtitle: { color: DriveColors.muted, fontSize: 13, lineHeight: 19 },
-  stepTrack: { flexDirection: 'row', gap: 5, marginBottom: 8 },
-  stepSegment: { flex: 1, height: 4, borderRadius: 4, backgroundColor: DriveColors.line },
-  stepSegmentActive: { backgroundColor: DriveColors.green },
-  stepLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 21 },
-  stepLabel: { color: DriveColors.muted, fontSize: 10 },
-  stepLabelActive: { color: DriveColors.green, fontWeight: '700' },
-  form: { gap: 14 },
-  row: { flexDirection: 'row', gap: 10 },
-  half: { flex: 1 },
-  fieldLabel: { color: DriveColors.ink, fontSize: 13, fontWeight: '600' },
-  options: { flexDirection: 'row', gap: 8, marginTop: -6 },
-  option: { minHeight: 40, minWidth: 54, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: DriveColors.line, alignItems: 'center', justifyContent: 'center' },
-  optionSelected: { borderColor: DriveColors.green, backgroundColor: '#E8EFE8' },
-  optionText: { color: DriveColors.muted, fontSize: 12, fontWeight: '600' },
-  optionTextSelected: { color: DriveColors.green },
-  documentNote: { flexDirection: 'row', alignItems: 'center', gap: 9, padding: 12, backgroundColor: DriveColors.surfaceMuted, borderRadius: 8 },
-  documentText: { flex: 1, color: DriveColors.muted, fontSize: 11, lineHeight: 16 },
-  checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 5 },
-  checkbox: { width: 21, height: 21, borderRadius: 5, borderWidth: 1, borderColor: DriveColors.line, alignItems: 'center', justifyContent: 'center' },
-  checkboxSelected: { backgroundColor: DriveColors.green, borderColor: DriveColors.green },
-  checkboxMark: { color: DriveColors.white, fontSize: 13, fontWeight: '700' },
-  checkCopy: { flex: 1, gap: 3 },
-  checkTitle: { color: DriveColors.ink, fontSize: 12, fontWeight: '600' },
-  checkDetail: { color: DriveColors.muted, fontSize: 11, lineHeight: 16 },
-  error: { color: DriveColors.danger, fontSize: 12, lineHeight: 17, marginTop: 14 },
-  navigation: { flexDirection: 'row', gap: 9, marginTop: 21 },
-  nextButton: { flex: 1 },
-  note: { color: DriveColors.muted, fontSize: 10, lineHeight: 15, textAlign: 'center', marginTop: 15, marginBottom: 10 },
-  successMark: { width: 54, height: 54, borderRadius: 27, backgroundColor: DriveColors.lime, alignItems: 'center', justifyContent: 'center', marginTop: 35 },
-  successCheck: { color: DriveColors.ink, fontSize: 27, fontWeight: '700' },
-  successHeading: { gap: 11, marginTop: 24, marginBottom: 24 },
-  reviewPanel: { backgroundColor: DriveColors.surfaceMuted, borderRadius: 10, padding: 16, gap: 14 },
-  reviewTitle: { color: DriveColors.ink, fontSize: 14, fontWeight: '700', marginBottom: 2 },
-  reviewStep: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  reviewNumber: { width: 24, height: 24, borderRadius: 12, backgroundColor: DriveColors.white, alignItems: 'center', justifyContent: 'center' },
-  reviewNumberText: { color: DriveColors.green, fontSize: 11, fontWeight: '700' },
-  reviewStepText: { flex: 1, color: DriveColors.ink, fontSize: 12, lineHeight: 17 },
-  successButton: { marginTop: 18 },
+  flex: { flex: 1, minWidth: 0 },
+  row: { flexDirection: 'row', gap: space.md },
+  progress: { flexDirection: 'row', gap: space.xs, marginTop: space.sm },
+  segment: { flex: 1, height: 4, borderRadius: 2, backgroundColor: colors.line },
+  segmentOn: { backgroundColor: colors.brand },
+  heading: { gap: space.xs, paddingTop: space.lg, paddingBottom: space.xl },
+  error: { marginTop: space.md },
+  success: { alignItems: 'center', gap: space.md, paddingTop: space.xxxl, paddingBottom: space.xxl },
+  successIcon: { width: 72, height: 72, borderRadius: 36, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  next: { gap: space.md },
+  nextRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
+  nextNumber: { width: 28, height: 28, borderRadius: radius.pill, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' },
 });

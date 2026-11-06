@@ -1,40 +1,73 @@
 import { Tabs } from 'expo-router';
-import { SymbolView } from 'expo-symbols';
 import { StyleSheet } from 'react-native';
-import { Avatar } from 'react-native-paper';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { DriveColors } from '@/constants/drive-theme';
+import { Icon, type IconName } from '@/components/ui';
 import { useDriveApp } from '@/hooks/use-drive-app';
+import type { Role } from '@/types/api';
+import { colors } from '@/theme/tokens';
 
-const tabSymbols = {
-  home: { ios: 'house.fill', android: 'home', web: 'home' },
-  people: { ios: 'person.2', android: 'group', web: 'groups' },
-  lesson: { ios: 'car.fill', android: 'directions_car', web: 'directions_car' },
-  schedule: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' },
-  profile: { ios: 'person.crop.circle', android: 'account_circle', web: 'account_circle' },
-} as const;
+type TabKey = 'index' | 'teachers' | 'schedule' | 'account';
+
+/** Cada perfil tem a própria linguagem nas abas; os arquivos de rota são compartilhados. */
+const tabsByRole: Record<Role, Record<TabKey, { title: string; icon: IconName; activeIcon: IconName }>> = {
+  student: {
+    index: { title: 'Início', icon: 'home-variant-outline', activeIcon: 'home-variant' },
+    teachers: { title: 'Explorar', icon: 'compass-outline', activeIcon: 'compass' },
+    schedule: { title: 'Minhas aulas', icon: 'calendar-blank-outline', activeIcon: 'calendar-blank' },
+    account: { title: 'Perfil', icon: 'account-circle-outline', activeIcon: 'account-circle' },
+  },
+  teacher: {
+    index: { title: 'Painel', icon: 'view-dashboard-outline', activeIcon: 'view-dashboard' },
+    teachers: { title: 'Alunos', icon: 'account-group-outline', activeIcon: 'account-group' },
+    schedule: { title: 'Agenda', icon: 'calendar-blank-outline', activeIcon: 'calendar-blank' },
+    account: { title: 'Perfil', icon: 'account-circle-outline', activeIcon: 'account-circle' },
+  },
+  admin: {
+    index: { title: 'Painel', icon: 'view-dashboard-outline', activeIcon: 'view-dashboard' },
+    teachers: { title: 'Instrutores', icon: 'card-account-details-outline', activeIcon: 'card-account-details' },
+    schedule: { title: 'Aulas', icon: 'calendar-blank-outline', activeIcon: 'calendar-blank' },
+    account: { title: 'Gestão', icon: 'shield-account-outline', activeIcon: 'shield-account' },
+  },
+};
 
 export default function MainTabs() {
   const { role } = useDriveApp();
+  const tabs = tabsByRole[role];
+  const insets = useSafeAreaInsets();
+
+  const screen = (name: TabKey) => (
+    <Tabs.Screen
+      name={name}
+      options={{
+        title: tabs[name].title,
+        tabBarAccessibilityLabel: tabs[name].title,
+        tabBarIcon: ({ focused, color }) => <Icon name={focused ? tabs[name].activeIcon : tabs[name].icon} color={color} size={24} />,
+      }}
+    />
+  );
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: DriveColors.green,
-        tabBarInactiveTintColor: DriveColors.muted,
-        tabBarStyle: { backgroundColor: DriveColors.white, borderTopColor: DriveColors.line, height: 88, paddingTop: 8, paddingBottom: 6, overflow: 'visible' },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarActiveTintColor: colors.brand,
+        tabBarInactiveTintColor: colors.muted,
+        // Altura própria + inset do sistema (barra de gestos do Android / indicador do iPhone).
+        tabBarStyle: [styles.bar, { height: 64 + insets.bottom, paddingBottom: Math.max(insets.bottom, 4) }],
+        tabBarLabelStyle: styles.label,
+        tabBarHideOnKeyboard: true,
+        sceneStyle: { backgroundColor: colors.background },
       }}>
-      <Tabs.Screen name="index" options={{ title: 'Início', tabBarIcon: ({ color, size }) => <SymbolView name={tabSymbols.home} tintColor={color} size={size} /> }} />
-      <Tabs.Screen name="teachers" options={{ title: role === 'teacher' ? 'Alunos' : role === 'admin' ? 'Pessoas' : 'Instrutores', tabBarIcon: ({ color, size }) => <SymbolView name={tabSymbols.people} tintColor={color} size={size} /> }} />
-      <Tabs.Screen name="lesson" options={{ title: 'Aula', tabBarShowLabel: false, tabBarItemStyle: { paddingTop: 0, overflow: 'visible' }, tabBarIcon: ({ size }) => <Avatar.Icon size={64} color={DriveColors.ink} icon={({ color, size: iconSize }) => <SymbolView name={tabSymbols.lesson} tintColor={color} size={iconSize} />} style={styles.lessonIcon} /> }} />
-      <Tabs.Screen name="schedule" options={{ title: 'Agenda', tabBarIcon: ({ color, size }) => <SymbolView name={tabSymbols.schedule} tintColor={color} size={size} /> }} />
-      <Tabs.Screen name="account" options={{ title: role === 'admin' ? 'Gestão' : 'Perfil', tabBarIcon: ({ color, size }) => <SymbolView name={tabSymbols.profile} tintColor={color} size={size} /> }} />
+      {screen('index')}
+      {screen('teachers')}
+      {screen('schedule')}
+      {screen('account')}
     </Tabs>
   );
 }
 
 const styles = StyleSheet.create({
-  lessonIcon: { backgroundColor: DriveColors.lime, marginTop: -17, elevation: 6, shadowColor: DriveColors.ink, shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.18, shadowRadius: 5 },
+  bar: { backgroundColor: colors.surface, borderTopColor: colors.line, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 4 },
+  label: { fontSize: 11, fontWeight: '600' },
 });

@@ -1,54 +1,66 @@
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { AppText, BackBar, Screen } from '@/components/drive-ui';
-import { DriveColors } from '@/constants/drive-theme';
+import { Header, Icon, Screen, Surface, Text, type IconName } from '@/components/ui';
+import { colors, radius, space } from '@/theme/tokens';
+
+const PROFILES: { route: '/register/student' | '/register/professional'; icon: IconName; title: string; text: string; points: string[]; dark?: boolean }[] = [
+  {
+    route: '/register/student',
+    icon: 'school-outline',
+    title: 'Quero tirar minha CNH',
+    text: 'Conta de aluno',
+    points: ['Encontre instrutores aprovados', 'Agende nos horários livres', 'Acompanhe sua evolução'],
+  },
+  {
+    route: '/register/professional',
+    icon: 'steering',
+    title: 'Quero dar aulas',
+    text: 'Conta de instrutor autônomo',
+    points: ['Receba pedidos de alunos', 'Defina valor e horários', 'Perfil liberado após análise'],
+    dark: true,
+  },
+];
 
 export default function RegisterChoiceScreen() {
   return (
-    <Screen>
-      <BackBar title="Criar conta" />
+    <Screen header={<Header title="Criar conta" />}>
       <View style={styles.heading}>
-        <AppText style={styles.eyebrow}>BEM-VINDO À ROTA</AppText>
-        <AppText style={styles.title}>Como você quer fazer parte?</AppText>
-        <AppText style={styles.subtitle}>Escolha seu perfil para começar um cadastro feito para você.</AppText>
+        <Text variant="title1" accessibilityRole="header">Como você vai usar o Rota?</Text>
+        <Text variant="callout" tone="muted">Cada perfil tem um cadastro e uma experiência própria.</Text>
       </View>
-      <Pressable accessibilityRole="button" onPress={() => router.push('/register/student')} style={styles.choice}>
-        <View style={styles.choiceTop}><View style={styles.icon}><AppText style={styles.iconText}>A</AppText></View><View style={styles.roleTag}><AppText style={styles.roleTagText}>ALUNO</AppText></View></View>
-        <AppText style={styles.choiceTitle}>Quero tirar minha CNH</AppText>
-        <AppText style={styles.choiceText}>Encontre instrutores, agende aulas e acompanhe sua evolução.</AppText>
-        <AppText style={styles.arrow}>Continuar  ›</AppText>
-      </Pressable>
-      <Pressable accessibilityRole="button" onPress={() => router.push('/register/professional')} style={[styles.choice, styles.proChoice]}>
-        <View style={styles.choiceTop}><View style={[styles.icon, styles.proIcon]}><AppText style={styles.proIconText}>P</AppText></View><View style={[styles.roleTag, styles.roleTagDark]}><AppText style={[styles.roleTagText, styles.roleTagTextDark]}>INSTRUTOR</AppText></View></View>
-        <AppText style={styles.choiceTitle}>Quero ensinar a dirigir</AppText>
-        <AppText style={styles.choiceText}>Cadastre seu perfil profissional, habilitação e veículo de aula.</AppText>
-        <AppText style={[styles.arrow, styles.proArrow]}>Cadastro profissional  ›</AppText>
-      </Pressable>
-      <AppText style={styles.note}>O cadastro profissional inclui uma etapa de análise dos dados e do veículo.</AppText>
+      <View style={styles.list}>
+        {PROFILES.map((profile) => (
+          <Surface key={profile.route} onPress={() => router.push(profile.route)} accessibilityLabel={`${profile.title}. ${profile.text}`} style={[styles.card, profile.dark && styles.cardDark]}>
+            <View style={styles.cardTop}>
+              <View style={[styles.icon, profile.dark && styles.iconDark]}><Icon name={profile.icon} size={26} color={profile.dark ? colors.accentInk : colors.brand} /></View>
+              <Icon name="arrow-right" color={profile.dark ? colors.onAsphalt : colors.ink} />
+            </View>
+            <Text variant="caption" tone={profile.dark ? 'inverseMuted' : 'muted'}>{profile.text.toUpperCase()}</Text>
+            <Text variant="title2" tone={profile.dark ? 'inverse' : 'default'}>{profile.title}</Text>
+            <View style={styles.points}>
+              {profile.points.map((point) => (
+                <View key={point} style={styles.point}>
+                  <Icon name="check" size={16} color={profile.dark ? colors.accent : colors.brand} />
+                  <Text variant="footnote" tone={profile.dark ? 'inverseMuted' : 'secondary'}>{point}</Text>
+                </View>
+              ))}
+            </View>
+          </Surface>
+        ))}
+      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  heading: { marginTop: 28, marginBottom: 24, gap: 7 },
-  eyebrow: { color: DriveColors.green, fontSize: 11, fontWeight: '700' },
-  title: { color: DriveColors.ink, fontSize: 29, lineHeight: 35, fontWeight: '700' },
-  subtitle: { color: DriveColors.muted, fontSize: 14, lineHeight: 20 },
-  choice: { backgroundColor: DriveColors.white, borderWidth: 1, borderColor: DriveColors.line, borderRadius: 10, padding: 17, marginBottom: 12 },
-  proChoice: { backgroundColor: DriveColors.ink, borderColor: DriveColors.ink },
-  choiceTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  icon: { width: 36, height: 36, borderRadius: 10, backgroundColor: DriveColors.lime, alignItems: 'center', justifyContent: 'center' },
-  iconText: { color: DriveColors.ink, fontSize: 15, fontWeight: '700' },
-  proIcon: { backgroundColor: '#3D4B42' },
-  proIconText: { color: DriveColors.lime, fontSize: 15, fontWeight: '700' },
-  roleTag: { backgroundColor: '#E8EFE8', paddingVertical: 5, paddingHorizontal: 8, borderRadius: 7 },
-  roleTagDark: { backgroundColor: '#3D4B42' },
-  roleTagText: { color: DriveColors.green, fontSize: 9, fontWeight: '700' },
-  roleTagTextDark: { color: DriveColors.white },
-  choiceTitle: { color: DriveColors.ink, fontSize: 18, fontWeight: '700' },
-  choiceText: { color: DriveColors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
-  arrow: { color: DriveColors.green, fontSize: 13, fontWeight: '700', marginTop: 17 },
-  proArrow: { color: DriveColors.lime },
-  note: { color: DriveColors.muted, fontSize: 12, lineHeight: 17, marginTop: 7 },
+  heading: { gap: space.xs, paddingTop: space.sm, paddingBottom: space.xl },
+  list: { gap: space.lg },
+  card: { gap: space.xs, padding: space.xl },
+  cardDark: { backgroundColor: colors.asphalt, borderColor: colors.asphalt },
+  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: space.md },
+  icon: { width: 52, height: 52, borderRadius: radius.md, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' },
+  iconDark: { backgroundColor: colors.accent },
+  points: { gap: space.xs, marginTop: space.sm },
+  point: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
 });

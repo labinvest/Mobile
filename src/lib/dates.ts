@@ -18,11 +18,17 @@ export function formatLongDate(date = new Date()) {
   return `${WEEKDAYS[date.getDay()]}, ${date.getDate()} de ${MONTHS[date.getMonth()]}`;
 }
 
-/** Próximos dias a partir de hoje, no formato dos botões de agendamento. */
+/** Próximos dias a partir de hoje, já separados para a faixa de datas do agendamento. */
 export function upcomingDays(count: number, from = new Date()) {
   return Array.from({ length: count }, (_, offset) => {
     const date = new Date(from.getFullYear(), from.getMonth(), from.getDate() + offset);
-    return { value: toIsoDate(date), label: `${SHORT_WEEKDAYS[date.getDay()]} ${date.getDate()}` };
+    return {
+      value: toIsoDate(date),
+      weekday: offset === 0 ? 'Hoje' : offset === 1 ? 'Amanhã' : SHORT_WEEKDAYS[date.getDay()],
+      day: date.getDate(),
+      month: MONTHS[date.getMonth()].slice(0, 3),
+      label: `${WEEKDAYS[date.getDay()]}, ${date.getDate()} de ${MONTHS[date.getMonth()]}`,
+    };
   });
 }
 

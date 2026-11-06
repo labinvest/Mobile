@@ -1,81 +1,72 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { StyleSheet, View } from 'react-native';
-import { SegmentedButtons } from 'react-native-paper';
 
-import { ActionButton, AppText, BackBar, FormField, Screen } from '@/components/drive-ui';
-import { DriveColors } from '@/constants/drive-theme';
+import { ControlledChoice, ControlledField, PasswordField } from '@/components/forms/controlled-field';
+import { BottomBar, Button, Header, Notice, Screen, SectionHeader, Text } from '@/components/ui';
 import { useDriveApp } from '@/hooks/use-drive-app';
 import { errorMessage } from '@/lib/api';
+import { haptic } from '@/lib/haptics';
+import { maskCpf, maskPhone } from '@/lib/masks';
+import { studentSignupSchema, type StudentSignupForm } from '@/lib/validation';
 import type { Category } from '@/types/api';
+import { space } from '@/theme/tokens';
 
-export default function StudentRegistrationScreen() {
+const CATEGORIES = [
+  { value: 'B', label: 'B · carro' },
+  { value: 'A', label: 'A · moto' },
+  { value: 'AB', label: 'AB · carro e moto' },
+];
+
+export default function StudentSignupScreen() {
   const { registerStudent } = useDriveApp();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [city, setCity] = useState('');
-  const [password, setPassword] = useState('');
-  const [category, setCategory] = useState<Category>('B');
   const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const { control, handleSubmit, formState } = useForm<StudentSignupForm>({
+    resolver: zodResolver(studentSignupSchema),
+    defaultValues: { name: '', email: '', phone: '', cpf: '', city: '', category: 'B', password: '' },
+  });
 
   // Com a conta criada, as rotas protegidas do layout levam o aluno para o app.
-  async function createAccount() {
-    if (!name.trim() || !email.includes('@') || phone.replace(/\D/g, '').length < 10 || cpf.replace(/\D/g, '').length !== 11 || !city.trim() || password.length < 6) {
-      setError('Confira os dados obrigatórios, o e-mail, o telefone, o CPF e a senha com pelo menos 6 caracteres.');
-      return;
-    }
-    setError('');
-    setSubmitting(true);
-    try {
-      await registerStudent({ name, email, phone, cpf, city, category, password });
-    } catch (caught) {
-      setError(errorMessage(caught));
-      setSubmitting(false);
-    }
-  }
+  const submit = handleSubmit(
+    async (values) => {
+      setError('');
+      try {
+        await registerStudent({ ...values, name: values.name.trim(), city: values.city.trim(), category: values.category as Category });
+        haptic.success();
+      } catch (caught) {
+        haptic.error();
+        setError(errorMessage(caught));
+      }
+    },
+    () => haptic.error(),
+  );
 
   return (
-    <Screen>
-      <BackBar title="Cadastro de aluno" />
+    <Screen
+      header={<Header title="Conta de aluno" />}
+      footer={<BottomBar><Button label="Criar minha conta" size="lg" loading={formState.isSubmitting} onPress={submit} fullWidth /></BottomBar>}>
       <View style={styles.heading}>
-        <AppText style={styles.eyebrow}>PASSO 1 DE 1 · ALUNO</AppText>
-        <AppText style={styles.title}>Vamos começar pelo básico.</AppText>
-        <AppText style={styles.subtitle}>Seu perfil ajuda a encontrar aulas que combinam com você.</AppText>
+        <Text variant="title1" accessibilityRole="header">Vamos começar</Text>
+        <Text variant="callout" tone="muted">Leva menos de um minuto. Você já sai pronto para buscar instrutores.</Text>
       </View>
-      <View style={styles.form}>
-        <FormField label="Nome completo" autoComplete="name" autoCapitalize="words" onChangeText={setName} placeholder="Como podemos te chamar?" value={name} />
-        <FormField label="E-mail" autoCapitalize="none" autoComplete="email" keyboardType="email-address" onChangeText={setEmail} placeholder="voce@email.com" value={email} />
-        <View style={styles.row}>
-          <View style={styles.half}><FormField label="Celular" keyboardType="phone-pad" onChangeText={setPhone} placeholder="(11) 99999-9999" value={phone} /></View>
-          <View style={styles.half}><FormField label="CPF" keyboardType="numeric" onChangeText={setCpf} placeholder="000.000.000-00" value={cpf} /></View>
-        </View>
-        <FormField label="Cidade" autoCapitalize="words" onChangeText={setCity} placeholder="Sua cidade" value={city} />
-        <AppText style={styles.categoryLabel}>Categoria desejada</AppText>
-        <SegmentedButtons
-          value={category}
-          onValueChange={(value) => setCategory(value as Category)}
-          buttons={['A', 'B', 'AB'].map((option) => ({ value: option, label: option }))}
-        />
-        <FormField label="Crie uma senha" autoComplete="new-password" onChangeText={setPassword} placeholder="Pelo menos 6 caracteres" secureTextEntry value={password} />
-        {!!error && <AppText style={styles.error}>{error}</AppText>}
-        <ActionButton label="Criar conta de aluno" onPress={createAccount} loading={submitting} />
-        <AppText style={styles.note}>Ao continuar, você poderá completar preferências e agendar sua primeira aula.</AppText>
-      </View>
+
+      <SectionHeader title="Sobre você" />
+      <ControlledField control={control} name="name" label="Nome completo" icon="account-outline" placeholder="Como no seu documento" autoComplete="name" autoCapitalize="words" textContentType="name" />
+      <ControlledField control={control} name="cpf" label="CPF" icon="card-account-details-outline" placeholder="000.000.000-00" keyboardType="number-pad" mask={maskCpf} helper="Usado só para identificar sua conta." />
+      <ControlledField control={control} name="city" label="Cidade" icon="map-marker-outline" placeholder="Onde você vai fazer as aulas" autoCapitalize="words" autoComplete="postal-address-locality" />
+      <ControlledChoice control={control} name="category" label="Categoria que você quer tirar" options={CATEGORIES} />
+
+      <SectionHeader title="Acesso" />
+      <ControlledField control={control} name="email" label="E-mail" icon="email-outline" placeholder="voce@email.com" autoCapitalize="none" autoComplete="email" keyboardType="email-address" textContentType="emailAddress" />
+      <ControlledField control={control} name="phone" label="Celular" icon="cellphone" placeholder="(11) 99999-9999" keyboardType="phone-pad" autoComplete="tel" mask={maskPhone} />
+      <PasswordField control={control} name="password" label="Crie uma senha" placeholder="Pelo menos 6 caracteres" autoComplete="new-password" textContentType="newPassword" />
+
+      {!!error && <Notice tone="danger" title="Não foi possível criar a conta" message={error} />}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  heading: { marginTop: 24, marginBottom: 21, gap: 6 },
-  eyebrow: { color: DriveColors.green, fontSize: 11, fontWeight: '700' },
-  title: { color: DriveColors.ink, fontSize: 27, lineHeight: 33, fontWeight: '700' },
-  subtitle: { color: DriveColors.muted, fontSize: 14, lineHeight: 20 },
-  form: { gap: 14 },
-  row: { flexDirection: 'row', gap: 10 },
-  half: { flex: 1 },
-  categoryLabel: { color: DriveColors.ink, fontSize: 13, fontWeight: '600' },
-  error: { color: DriveColors.danger, fontSize: 12, lineHeight: 17 },
-  note: { textAlign: 'center', color: DriveColors.muted, fontSize: 11, lineHeight: 16 },
+  heading: { gap: space.xs, paddingTop: space.sm, paddingBottom: space.xl },
 });

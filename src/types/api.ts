@@ -30,6 +30,7 @@ export type Appointment = {
   meetingPoint: string;
   notes: string;
   price?: string;
+  priceCents?: number;
   status: AppointmentStatus;
   studentConfirmed: boolean;
   teacherConfirmed: boolean;
@@ -72,6 +73,26 @@ export type Teacher = {
   cnhExpiry?: string;
 };
 
+/** Mesma lista de Backend/src/lib/availability.ts. */
+export type Period = '08h às 10h' | '10h às 12h' | '13h às 15h' | '15h às 17h' | '18h às 20h';
+export type WeeklySlot = { weekday: number; period: Period };
+
+export type TeacherProfile = {
+  teacher: Teacher;
+  weeklySlots: WeeklySlot[];
+  completedLessons: number;
+  reviews: { id: number; authorName: string; authorInitials: string; rating: number; comment: string; submittedAt: number }[];
+};
+
+export type TeacherAvailability = {
+  /** false: o instrutor ainda não montou a agenda e aceita pedidos em qualquer período. */
+  configured: boolean;
+  days: { date: string; periods: { period: Period; available: boolean }[] }[];
+};
+
+export type NotificationKind = 'request' | 'accepted' | 'declined' | 'confirm' | 'started' | 'completed' | 'review';
+export type AppNotification = { id: string; kind: NotificationKind; title: string; body: string; at: number; appointmentId: number; unread: boolean };
+
 export type Account = {
   id: number;
   role: Role;
@@ -81,7 +102,7 @@ export type Account = {
   city: string | null;
   initials: string;
   student: { category: Category; lessonsGoal: number; completedLessons: number } | null;
-  teacher: (Teacher & { latestReview: LessonReview | null }) | null;
+  teacher: (Teacher & { latestReview: LessonReview | null; weeklySlots: WeeklySlot[] }) | null;
 };
 
 export type AuthSession = { token: string; user: Account };

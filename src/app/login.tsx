@@ -1,105 +1,75 @@
+import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useForm } from 'react-hook-form';
+import { StyleSheet, View } from 'react-native';
 
-import { ActionButton, AppText, Brand, FormField, ScreenWidth } from '@/components/drive-ui';
-import { DriveColors } from '@/constants/drive-theme';
+import { Brand } from '@/components/brand';
+import { ControlledField, PasswordField } from '@/components/forms/controlled-field';
+import { Button, Header, Notice, Screen, Text } from '@/components/ui';
 import { useDriveApp } from '@/hooks/use-drive-app';
 import { errorMessage } from '@/lib/api';
+import { haptic } from '@/lib/haptics';
+import { loginSchema, type LoginForm } from '@/lib/validation';
+import { space } from '@/theme/tokens';
 
 export default function LoginScreen() {
   const { signIn } = useDriveApp();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const { control, handleSubmit, formState } = useForm<LoginForm>({ resolver: zodResolver(loginSchema), defaultValues: { email: '', password: '' } });
 
   // Depois do login, as rotas protegidas do layout levam o usuário para o app.
-  async function enterApp() {
-    if (!email.trim() || !password.trim()) {
-      setError('Preencha e-mail e senha para continuar.');
-      return;
-    }
-    setError('');
-    setSubmitting(true);
-    try {
-      await signIn(email.trim(), password);
-    } catch (caught) {
-      setError(errorMessage(caught));
-      setSubmitting(false);
-    }
-  }
+  const submit = handleSubmit(
+    async (values) => {
+      setError('');
+      try {
+        await signIn(values.email, values.password);
+        haptic.success();
+      } catch (caught) {
+        haptic.error();
+        setError(errorMessage(caught));
+      }
+    },
+    () => haptic.error(),
+  );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.flex}>
-        <View style={styles.page}>
-          <View style={styles.content}>
-            <Brand />
-            <View style={styles.intro}>
-              <AppText style={styles.eyebrow}>SUA CNH, NO SEU RITMO</AppText>
-              <AppText style={styles.title}>Aprender a dirigir começa com uma boa conexão.</AppText>
-              <AppText style={styles.subtitle}>Encontre instrutores independentes, combine suas aulas e acompanhe cada etapa.</AppText>
-            </View>
+    <Screen header={<Header />}>
+      <View style={styles.heading}>
+        <Brand />
+        <Text variant="title1" accessibilityRole="header" style={styles.title}>Bom te ver de novo</Text>
+        <Text variant="callout" tone="muted">Entre para acompanhar suas aulas.</Text>
+      </View>
 
-            <View style={styles.form}>
-              <View style={styles.inputGroup}>
-                <FormField
-                  label="E-mail"
-                  accessibilityLabel="E-mail"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  keyboardType="email-address"
-                  onChangeText={setEmail}
-                  placeholder="voce@email.com"
-                  style={styles.input}
-                  value={email}
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <FormField
-                  label="Senha"
-                  accessibilityLabel="Senha"
-                  onChangeText={setPassword}
-                  placeholder="Sua senha"
-                  secureTextEntry
-                  style={styles.input}
-                  value={password}
-                />
-              </View>
-              {!!error && <AppText style={styles.error}>{error}</AppText>}
-              <ActionButton label="Entrar" onPress={enterApp} loading={submitting} />
-              <Pressable accessibilityRole="button" onPress={() => router.push('/register')} style={styles.registerLink}>
-                <AppText style={styles.registerText}>Ainda não tem conta? <AppText style={styles.registerStrong}>Cadastre-se</AppText></AppText>
-              </Pressable>
-            </View>
-            <AppText style={styles.footer}>Aulas particulares. Mais autonomia no caminho.</AppText>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      <View style={styles.form}>
+        <ControlledField
+          control={control}
+          name="email"
+          label="E-mail"
+          icon="email-outline"
+          placeholder="voce@email.com"
+          autoCapitalize="none"
+          autoComplete="email"
+          keyboardType="email-address"
+          textContentType="emailAddress"
+          returnKeyType="next"
+        />
+        <PasswordField control={control} name="password" label="Senha" placeholder="Sua senha" autoComplete="current-password" textContentType="password" returnKeyType="go" onSubmitEditing={submit} />
+        {!!error && <Notice tone="danger" message={error} />}
+        <Button label="Entrar" size="lg" loading={formState.isSubmitting} onPress={submit} fullWidth />
+      </View>
+
+      <View style={styles.footer}>
+        <Text variant="callout" tone="muted">Ainda não tem conta?</Text>
+        <Button label="Criar conta" variant="ghost" onPress={() => router.replace('/register')} />
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: DriveColors.background },
-  flex: { flex: 1 },
-  page: { flex: 1, alignItems: 'center' },
-  content: { width: '100%', maxWidth: ScreenWidth, flex: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 20 },
-  intro: { marginTop: 54, marginBottom: 30, gap: 12 },
-  eyebrow: { color: DriveColors.green, fontSize: 12, fontWeight: '700' },
-  title: { color: DriveColors.ink, fontSize: 34, lineHeight: 39, fontWeight: '700', maxWidth: 430 },
-  subtitle: { color: DriveColors.muted, fontSize: 16, lineHeight: 23, maxWidth: 420 },
-  form: { gap: 14 },
-  label: { color: DriveColors.ink, fontSize: 14, fontWeight: '600' },
-  roleSwitch: { marginBottom: 2 },
-  inputGroup: { gap: 7 },
-  input: { backgroundColor: DriveColors.white },
-  error: { color: DriveColors.danger, fontSize: 13 },
-  demoNote: { color: DriveColors.muted, fontSize: 12, textAlign: 'center', marginTop: 2 },
-  registerLink: { minHeight: 40, justifyContent: 'center', alignItems: 'center' },
-  registerText: { color: DriveColors.muted, fontSize: 13 },
-  registerStrong: { color: DriveColors.green, fontWeight: '700' },
-  footer: { color: DriveColors.muted, fontSize: 12, marginTop: 'auto', paddingTop: 24 },
+  heading: { gap: space.xs, paddingTop: space.lg, paddingBottom: space.xxl },
+  title: { marginTop: space.xl },
+  form: { gap: space.xs },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: space.xl },
 });

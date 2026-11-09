@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { LessonReviewSection } from '@/components/lesson/lesson-review';
+import { LessonRouteSection } from '@/components/lesson/lesson-route';
 import { Avatar, Badge, BottomBar, Button, EmptyState, Header, Icon, ListRow, Notice, Screen, SectionHeader, Surface, Text, type IconName } from '@/components/ui';
 import { useDriveApp } from '@/hooks/use-drive-app';
 import { errorMessage } from '@/lib/api';
@@ -144,6 +145,8 @@ export default function LessonScreen() {
       {!!error && <Notice tone="danger" message={error} style={styles.block} />}
 
       <StatusPanel lesson={lesson} me={me} otherName={otherName} elapsed={elapsed} />
+
+      {(lesson.status === 'in-progress' || lesson.status === 'completed') && <LessonRouteSection lessonId={lesson.id} live={lesson.status === 'in-progress'} />}
 
       {lesson.status === 'completed' && me && (
         <View style={styles.section}>

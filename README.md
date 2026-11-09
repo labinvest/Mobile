@@ -30,7 +30,7 @@ O login usa contas reais da API. Depois de rodar o seed do backend, as contas de
 
 ## Limites atuais
 
-Os pagamentos são combinados diretamente com o instrutor, fora do app. Ainda não há notificações push (os avisos aparecem dentro do app), envio de fotos da CNH nem integração com GPS.
+Os pagamentos são combinados diretamente com o instrutor, fora do app. Ainda não há notificações push (os avisos aparecem dentro do app) nem envio de fotos da CNH. O mapa do trajeto já funciona, mas depende do dispositivo GPS do veículo, que ainda não foi construído (o formato de envio está no `README.md` da pasta `Backend`). O mapa usa os servidores públicos do OpenStreetMap, adequados para testes e apresentações. Com uso real, será preciso um provedor de mapas próprio.
 
 ## Desenvolvimento
 

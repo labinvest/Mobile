@@ -41,6 +41,12 @@ export type Appointment = {
   reviews: { student?: LessonReview; teacher?: LessonReview };
 };
 
+export type LessonRoute = {
+  points: { latitude: number; longitude: number }[];
+  distanceMeters: number;
+  maxSpeedKmh: number | null;
+};
+
 export type Vehicle = {
   id: number;
   model: string;

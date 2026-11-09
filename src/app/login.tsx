@@ -54,7 +54,7 @@ export default function LoginScreen() {
           textContentType="emailAddress"
           returnKeyType="next"
         />
-        <PasswordField control={control} name="password" label="Senha" placeholder="Sua senha" autoComplete="current-password" textContentType="password" returnKeyType="go" onSubmitEditing={submit} />
+        <PasswordField control={control} name="password" label="Senha" placeholder="Sua senha" autoComplete="current-password" textContentType="password" returnKeyType="go" onSubmitEditing={() => submit()} />
         {!!error && <Notice tone="danger" message={error} />}
         <Button label="Entrar" size="lg" loading={formState.isSubmitting} onPress={submit} fullWidth />
       </View>

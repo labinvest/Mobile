@@ -42,7 +42,7 @@ export default function MainTabs() {
       options={{
         title: tabs[name].title,
         tabBarAccessibilityLabel: tabs[name].title,
-        tabBarIcon: ({ focused, color }) => <Icon name={focused ? tabs[name].activeIcon : tabs[name].icon} color={color} size={24} />,
+        tabBarIcon: ({ focused, color }) => <Icon name={focused ? tabs[name].activeIcon : tabs[name].icon} color={color as string} size={24} />,
       }}
     />
   );

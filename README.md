@@ -1,10 +1,10 @@
 # Rota · App
 
-App para conectar alunos a instrutores autônomos de direção e acompanhar o caminho até a CNH. Feito com Expo SDK 57, React Native, TypeScript e Expo Router. Os dados vêm da API do Rota, na pasta `Backend`.
+App para conectar alunos a instrutores autônomos de direção e acompanhar o caminho até a CNH. Feito com Expo SDK 58, React Native, TypeScript e Expo Router. Os dados vêm da API do Rota, na pasta `Backend`.
 
 ## Executar
 
-A API precisa estar rodando antes de abrir o app. Veja o `README.md` da pasta `Backend`.
+É preciso ter Node 22.13 ou mais novo. A API precisa estar rodando antes de abrir o app. Veja o `README.md` da pasta `Backend`.
 
 ```bash
 npm install

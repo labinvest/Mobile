@@ -14,6 +14,7 @@ const kindStyle: Record<NotificationKind, { icon: IconName; bg: string; fg: stri
   accepted: { icon: 'check-decagram-outline', bg: colors.successSoft, fg: colors.success },
   confirm: { icon: 'account-check-outline', bg: colors.brandSoft, fg: colors.brand },
   declined: { icon: 'calendar-remove-outline', bg: colors.dangerSoft, fg: colors.danger },
+  cancelled: { icon: 'calendar-remove-outline', bg: colors.dangerSoft, fg: colors.danger },
   started: { icon: 'steering', bg: colors.accent, fg: colors.accentInk },
   completed: { icon: 'flag-checkered', bg: colors.brandSoft, fg: colors.brand },
   review: { icon: 'star-outline', bg: colors.warningSoft, fg: colors.star },

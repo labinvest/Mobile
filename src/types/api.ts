@@ -5,7 +5,7 @@ export type Category = 'A' | 'B' | 'AB';
 export type Transmission = 'Manual' | 'Automático';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type VehicleStatus = 'pending' | 'active' | 'rejected';
-export type AppointmentStatus = 'requested' | 'declined' | 'scheduled' | 'in-progress' | 'completed';
+export type AppointmentStatus = 'requested' | 'declined' | 'scheduled' | 'in-progress' | 'completed' | 'cancelled';
 
 export type LessonReview = {
   authorName: string;
@@ -32,6 +32,8 @@ export type Appointment = {
   price?: string;
   priceCents?: number;
   status: AppointmentStatus;
+  /** Em aula cancelada, ausente significa encerramento automático por data vencida. */
+  cancelledBy?: 'student' | 'teacher';
   studentConfirmed: boolean;
   teacherConfirmed: boolean;
   startedAt?: number;
@@ -90,7 +92,7 @@ export type TeacherAvailability = {
   days: { date: string; periods: { period: Period; available: boolean }[] }[];
 };
 
-export type NotificationKind = 'request' | 'accepted' | 'declined' | 'confirm' | 'started' | 'completed' | 'review';
+export type NotificationKind = 'request' | 'accepted' | 'declined' | 'cancelled' | 'confirm' | 'started' | 'completed' | 'review';
 export type AppNotification = { id: string; kind: NotificationKind; title: string; body: string; at: number; appointmentId: number; unread: boolean };
 
 export type Account = {

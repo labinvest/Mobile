@@ -23,9 +23,11 @@ export function maskDate(value: string) {
   return [d.slice(0, 2), d.slice(2, 4), d.slice(4)].filter(Boolean).join('/');
 }
 
-/** 'R$ 85' ou '85,50' -> 8550 centavos; null se não der para ler. */
+/** 'R$ 85' -> 8500 · '85,5' ou '85.5' -> 8550 · '1.000,50' -> 100050; null se não der para ler. */
 export function parsePriceToCents(value: string) {
-  const normalized = value.replace(/[^\d,]/g, '').replace(',', '.');
-  const amount = Number(normalized);
-  return normalized && Number.isFinite(amount) ? Math.round(amount * 100) : null;
+  const match = /^(\d+|\d{1,3}(?:\.\d{3})+)?(?:[.,](\d{0,2}))?$/.exec(value.replace(/[^\d.,]/g, ''));
+  if (!match || !(match[1] || match[2])) return null;
+  const reais = Number((match[1] ?? '').replace(/\./g, ''));
+  const cents = Number((match[2] ?? '').padEnd(2, '0'));
+  return reais * 100 + cents;
 }

@@ -26,6 +26,7 @@ type DriveAppContextValue = {
   requestLesson: (request: LessonRequest) => Promise<Appointment>;
   respondToLesson: (appointmentId: number, accepted: boolean) => Promise<Appointment>;
   setAvailability: (available: boolean) => Promise<void>;
+  cancelLesson: (appointmentId: number) => Promise<Appointment>;
   confirmLesson: (appointmentId: number) => Promise<Appointment>;
   startLesson: (appointmentId: number) => Promise<Appointment>;
   finishLesson: (appointmentId: number) => Promise<Appointment>;
@@ -143,6 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     requestLesson: (request) => postAppointment('/appointments', request),
     respondToLesson: (appointmentId, accepted) => postAppointment(`/appointments/${appointmentId}/respond`, { accepted }),
     setAvailability,
+    cancelLesson: (appointmentId) => postAppointment(`/appointments/${appointmentId}/cancel`),
     confirmLesson: (appointmentId) => postAppointment(`/appointments/${appointmentId}/confirm`),
     startLesson: (appointmentId) => postAppointment(`/appointments/${appointmentId}/start`),
     finishLesson,

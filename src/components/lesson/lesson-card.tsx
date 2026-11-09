@@ -12,7 +12,7 @@ export function LessonCard({ lesson, perspective, onPress }: { lesson: Appointme
   const [, month, day] = lesson.lessonDate.split('-').map(Number);
   const meta = statusMeta[lesson.status];
   const person = perspective === 'student' ? lesson.teacherName : perspective === 'teacher' ? lesson.studentName : `${lesson.studentName.split(' ')[0]} com ${lesson.teacherName.split(' ')[0]}`;
-  const muted = lesson.status === 'declined';
+  const muted = lesson.status === 'declined' || lesson.status === 'cancelled';
 
   return (
     <Pressable

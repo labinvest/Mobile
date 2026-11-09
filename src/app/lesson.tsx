@@ -24,12 +24,13 @@ function formatDuration(seconds: number) {
 }
 
 export default function LessonScreen() {
-  const { role, appointments, refreshAppointments, confirmLesson, startLesson, finishLesson, respondToLesson, submitLessonReview } = useDriveApp();
+  const { role, appointments, refreshAppointments, cancelLesson, confirmLesson, startLesson, finishLesson, respondToLesson, submitLessonReview } = useDriveApp();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const lesson = appointments.find((appointment) => String(appointment.id) === id);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [confirmFinish, setConfirmFinish] = useState(false);
+  const [confirmCancel, setConfirmCancel] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const waiting = lesson?.status === 'requested' || lesson?.status === 'scheduled' || lesson?.status === 'in-progress';
 
@@ -61,6 +62,8 @@ export default function LessonScreen() {
   const myConfirmed = me === 'student' ? lesson.studentConfirmed : me === 'teacher' ? lesson.teacherConfirmed : true;
   const bothConfirmed = lesson.studentConfirmed && lesson.teacherConfirmed;
   const meta = statusMeta[lesson.status];
+  // Pedido o instrutor responde com "Recusar"; depois de aceita, qualquer um dos dois pode cancelar.
+  const canCancel = lesson.status === 'scheduled' ? !!me : lesson.status === 'requested' && me === 'student';
   const elapsed = lesson.status === 'completed' ? lesson.durationSeconds ?? 0 : lesson.startedAt ? Math.max(0, Math.floor((now - lesson.startedAt) / 1000)) : 0;
 
   async function run(key: string, action: () => Promise<unknown>) {
@@ -105,7 +108,7 @@ export default function LessonScreen() {
         <Button label="Finalizar aula" size="lg" icon="flag-checkered" variant="secondary" onPress={() => setConfirmFinish(true)} fullWidth />
       );
     }
-    if (lesson.status === 'declined' && me === 'student') {
+    if ((lesson.status === 'declined' || lesson.status === 'cancelled') && me === 'student') {
       return <Button label="Escolher outro horário" size="lg" icon="calendar-search" onPress={() => openInstructor({ id: lesson.teacherId })} fullWidth />;
     }
     return null;
@@ -164,6 +167,15 @@ export default function LessonScreen() {
           <Detail icon="pound" label="Código da aula" value={`#${lesson.id}`} last />
         </Surface>
       </View>
+
+      {canCancel && (confirmCancel ? (
+        <View style={[styles.actions, styles.section]}>
+          <Button label="Manter" variant="secondary" disabled={!!busy} onPress={() => setConfirmCancel(false)} style={styles.flex} />
+          <Button label="Sim, cancelar" variant="danger" loading={busy === 'cancel'} disabled={!!busy} onPress={() => run('cancel', () => cancelLesson(lesson.id)).then(() => setConfirmCancel(false))} style={styles.flex} />
+        </View>
+      ) : (
+        <Button label={lesson.status === 'requested' ? 'Cancelar pedido' : 'Cancelar aula'} variant="ghost" onPress={() => setConfirmCancel(true)} style={styles.section} />
+      ))}
     </Screen>
   );
 }
@@ -178,6 +190,11 @@ function StatusPanel({ lesson, me, otherName, elapsed }: { lesson: Appointment; 
   }
   if (lesson.status === 'declined') {
     return <Notice tone="danger" title="Pedido recusado" message={me === 'student' ? `${first} não pôde aceitar este horário. Você pode escolher outro.` : 'Você recusou este pedido.'} style={styles.block} />;
+  }
+  if (lesson.status === 'cancelled') {
+    if (!lesson.cancelledBy) return <Notice tone="info" title="Aula não realizada" message="A data marcada passou sem a aula começar, então este horário foi encerrado." style={styles.block} />;
+    const who = lesson.cancelledBy === me ? 'Você' : (lesson.cancelledBy === 'student' ? lesson.studentName : lesson.teacherName).split(' ')[0];
+    return <Notice tone="info" title="Aula cancelada" message={`${who} cancelou este horário.`} style={styles.block} />;
   }
   if (lesson.status === 'scheduled') {
     return (

@@ -50,7 +50,7 @@ export function MyLessons() {
           view === 'upcoming' ? (
             <EmptyState icon="calendar-blank-outline" title="Nenhuma aula marcada" message="Escolha um instrutor e peça um horário. O pedido aparece aqui até ele responder." actionLabel="Explorar instrutores" onAction={() => router.navigate('/(tabs)/teachers')} />
           ) : (
-            <EmptyState icon="history" title="Histórico vazio" message="Aulas concluídas e pedidos recusados ficam guardados aqui." />
+            <EmptyState icon="history" title="Histórico vazio" message="Aulas concluídas, recusadas e canceladas ficam guardadas aqui." />
           )
         ) : (
           list.map((lesson) => <LessonCard key={lesson.id} lesson={lesson} perspective="student" onPress={() => openLesson(lesson)} />)

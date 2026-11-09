@@ -12,6 +12,7 @@ export const statusMeta: Record<AppointmentStatus, { label: string; tone: BadgeT
   'in-progress': { label: 'Em andamento', tone: 'accent' },
   completed: { label: 'Concluída', tone: 'neutral' },
   declined: { label: 'Recusada', tone: 'danger' },
+  cancelled: { label: 'Cancelada', tone: 'neutral' },
 };
 
 /** Tira o prefixo "Aula prática · " que o agendamento grava no nome da aula. */

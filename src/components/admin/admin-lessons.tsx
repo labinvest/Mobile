@@ -18,7 +18,7 @@ export function AdminLessons() {
   const groups: Record<Tab, typeof appointments> = {
     open: appointments.filter(isOpen),
     completed: appointments.filter((item) => item.status === 'completed'),
-    declined: appointments.filter((item) => item.status === 'declined'),
+    declined: appointments.filter((item) => item.status === 'declined' || item.status === 'cancelled'),
   };
 
   async function refresh() {
@@ -36,7 +36,7 @@ export function AdminLessons() {
       <SegmentedControl
         value={tab}
         onChange={setTab}
-        options={[{ value: 'open', label: 'Em aberto', count: groups.open.length }, { value: 'completed', label: 'Concluídas', count: groups.completed.length }, { value: 'declined', label: 'Recusadas', count: groups.declined.length }]}
+        options={[{ value: 'open', label: 'Em aberto', count: groups.open.length }, { value: 'completed', label: 'Concluídas', count: groups.completed.length }, { value: 'declined', label: 'Encerradas', count: groups.declined.length }]}
       />
       <View style={styles.list}>
         {groups[tab].length === 0

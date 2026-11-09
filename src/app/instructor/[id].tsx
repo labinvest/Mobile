@@ -13,7 +13,7 @@ import { colors, radius, space } from '@/theme/tokens';
 
 export default function InstructorProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { appointments } = useDriveApp();
+  const { appointments, role } = useDriveApp();
   const { data, error, reload } = useApiData<TeacherProfile>(`/teachers/${id}`);
 
   if (error) {
@@ -38,11 +38,11 @@ export default function InstructorProfileScreen() {
               <Text variant="title2">{teacher.price}</Text>
               <Text variant="footnote" tone="muted">por aula</Text>
             </View>
-            {openLessonWith ? (
+            {role === 'student' && (openLessonWith ? (
               <Button label={statusMeta[openLessonWith.status].label} variant="secondary" trailingIcon="arrow-right" onPress={() => openLesson(openLessonWith)} style={styles.flex} />
             ) : (
               <Button label="Ver horários" icon="calendar-blank-outline" onPress={() => openBooking(teacher)} style={styles.flex} />
-            )}
+            ))}
           </View>
         </BottomBar>
       }>

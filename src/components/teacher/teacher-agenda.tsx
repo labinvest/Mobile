@@ -7,7 +7,7 @@ import { Avatar, Button, EmptyState, Icon, IconTile, ListRow, Notice, Screen, Se
 import { useDriveApp } from '@/hooks/use-drive-app';
 import { errorMessage } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
-import { initialsOf, lessonFocus } from '@/lib/lessons';
+import { initialsOf, isOpen, lessonFocus } from '@/lib/lessons';
 import { openLesson } from '@/lib/navigation';
 import type { Appointment } from '@/types/api';
 import { colors, radius, space } from '@/theme/tokens';
@@ -28,7 +28,7 @@ export function TeacherAgenda() {
   // Pedidos: o mais antigo primeiro, para ninguém ficar esperando.
   const requests = mine.filter((appointment) => appointment.status === 'requested').sort((a, b) => a.id - b.id);
   const upcoming = mine.filter((appointment) => appointment.status === 'scheduled' || appointment.status === 'in-progress').sort((a, b) => a.lessonDate.localeCompare(b.lessonDate) || a.time.localeCompare(b.time));
-  const done = mine.filter((appointment) => appointment.status === 'completed' || appointment.status === 'declined').sort((a, b) => b.lessonDate.localeCompare(a.lessonDate));
+  const done = mine.filter((appointment) => !isOpen(appointment)).sort((a, b) => b.lessonDate.localeCompare(a.lessonDate));
   const list = tab === 'upcoming' ? upcoming : done;
 
   async function respond(appointment: Appointment, accepted: boolean) {
@@ -121,7 +121,7 @@ export function TeacherAgenda() {
               compact
               icon={tab === 'upcoming' ? 'calendar-check-outline' : 'history'}
               title={tab === 'upcoming' ? 'Nenhuma aula confirmada' : 'Sem aulas no histórico'}
-              message={tab === 'upcoming' ? 'Ao aceitar um pedido, a aula aparece aqui.' : 'Aulas concluídas e pedidos recusados ficam guardados aqui.'}
+              message={tab === 'upcoming' ? 'Ao aceitar um pedido, a aula aparece aqui.' : 'Aulas concluídas, recusadas e canceladas ficam guardadas aqui.'}
             />
           ) : (
             list.map((lesson) => <LessonCard key={lesson.id} lesson={lesson} perspective="teacher" onPress={() => openLesson(lesson)} />)

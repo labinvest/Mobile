@@ -1,30 +1,42 @@
-# Rota
+# Rota · App
 
-App para conectar alunos a instrutores autônomos de direção e acompanhar o caminho até a CNH. Feito com Expo SDK 57, React Native, TypeScript e Expo Router, com base na estrutura do repositório de referência.
+App para conectar alunos a instrutores autônomos de direção e acompanhar o caminho até a CNH. Feito com Expo SDK 57, React Native, TypeScript e Expo Router. Os dados vêm da API do Rota, na pasta `Backend`.
 
 ## Executar
 
+A API precisa estar rodando antes de abrir o app. Veja o `README.md` da pasta `Backend`.
+
 ```bash
 npm install
-npm run web
+npm run web      # no navegador
+npm start        # QR code para o Expo Go
 ```
 
-Para usar o Expo Go, execute `npm start` e leia o QR code. Também estão disponíveis `npm run android` e `npm run ios`.
+Também estão disponíveis `npm run android` e `npm run ios`.
 
-## Acesso demonstrativo
+Sem configuração, o app procura a API na porta 3333 da máquina que roda o Expo, o que funciona na web, no emulador e no celular na mesma rede Wi-Fi. Para usar uma API publicada, copie `.env.example` para `.env` e defina `EXPO_PUBLIC_API_URL`.
 
-Na abertura, toque em **Começar agora** para chegar ao login. A partir dele, é possível entrar ou criar uma conta de aluno ou profissional. O cadastro de aluno é direto; o profissional tem etapas para dados pessoais, CNH, experiência e veículo.
+## Contas
 
-Para experimentar os painéis sem preencher cadastro, escolha Aluno, Instrutor ou Admin no login. O protótipo aceita qualquer e-mail e senha não vazios.
+O login usa contas reais da API. Depois de rodar o seed do backend, as contas de demonstração estão listadas no `README.md` da pasta `Backend`. Também é possível criar uma conta de aluno ou de instrutor pelo app. A conta de instrutor fica em análise até um admin aprovar os dados e o veículo.
 
 ## Áreas
 
-- Aluno: progresso da habilitação, busca e filtros de instrutores, pedidos de aula, agenda e perfil.
-- Instrutor: agenda diária, disponibilidade, alunos, veículo cadastrado e perfil profissional.
-- Administração: indicadores, revisão de instrutores e veículos, usuários e operação de aulas.
-- Aula: aluno e instrutor confirmam presença antes de iniciar; a tela mede a duração e mostra um relatório demonstrativo ao finalizar.
+- **Aluno:** progresso da habilitação, busca de instrutores, pedidos de aula, agenda e perfil.
+- **Instrutor:** agenda, pedidos, disponibilidade, valor, horários da semana e alunos.
+- **Administração:** indicadores, análise de instrutores e veículos, e aulas da plataforma.
+- **Aula:** o instrutor aceita o pedido, os dois confirmam presença e a aula é iniciada no dia marcado. O app mede a duração e, ao final, cada um avalia o outro.
+- **Cancelamento:** o aluno pode cancelar um pedido, e os dois podem cancelar uma aula agendada antes de ela começar. Pedidos e aulas cuja data passou sem a aula começar são encerrados automaticamente.
 
-## Limites do protótipo
+## Limites atuais
 
-Não há autenticação real, API, banco de dados, pagamentos, notificações ou GPS conectado. Distância, percurso e velocidades do relatório são ilustrativos; a integração IoT/GPS e as confirmações em sessões separadas serão necessárias antes do uso em produção. As ações demonstrativas reiniciam ao recarregar o app.
+Os pagamentos são combinados diretamente com o instrutor, fora do app. Ainda não há notificações push (os avisos aparecem dentro do app), envio de fotos da CNH nem integração com GPS.
 
+## Desenvolvimento
+
+```bash
+npx tsc --noEmit   # verificação de tipos
+npm run lint       # lint
+```
+
+As telas ficam em `src/app` (Expo Router), os componentes em `src/components` e o acesso à API em `src/lib/api.ts` e `src/hooks/use-drive-app.tsx`.

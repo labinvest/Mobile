@@ -5,6 +5,9 @@ import { StatusBar } from 'expo-status-bar';
 import { AppProvider, useDriveApp } from '@/hooks/use-drive-app';
 import { colors } from '@/theme/tokens';
 
+// Sem sessão, o app abre nas boas-vindas (e não na primeira tela em ordem alfabética, o login).
+export const unstable_settings = { initialRouteName: 'welcome' };
+
 // Mantém o splash até a sessão salva ser verificada.
 SplashScreen.preventAutoHideAsync();
 
@@ -37,7 +40,8 @@ function RootNavigator() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background }, animation: 'slide_from_right' }}>
       <Stack.Protected guard={!authenticated}>
-        <Stack.Screen name="index" />
+        {/* Não pode ser "index": o endereço "/" já é a aba inicial, e a colisão travava o app ao sair da conta. */}
+        <Stack.Screen name="welcome" />
         <Stack.Screen name="login" />
         <Stack.Screen name="register/index" />
         <Stack.Screen name="register/student" />

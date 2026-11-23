@@ -1,5 +1,6 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useState } from 'react';
 
+import type { PresenceProof } from '@/hooks/use-car-device';
 import { api, ApiError, setApiToken, setUnauthorizedHandler } from '@/lib/api';
 import { clearToken, loadToken, saveToken } from '@/lib/session-storage';
 import type { Account, Appointment, AuthSession, LessonRequest, RegisterStudentInput, RegisterTeacherInput, Role } from '@/types/api';
@@ -27,8 +28,8 @@ type DriveAppContextValue = {
   respondToLesson: (appointmentId: number, accepted: boolean) => Promise<Appointment>;
   setAvailability: (available: boolean) => Promise<void>;
   cancelLesson: (appointmentId: number) => Promise<Appointment>;
-  confirmLesson: (appointmentId: number) => Promise<Appointment>;
-  startLesson: (appointmentId: number) => Promise<Appointment>;
+  confirmLesson: (appointmentId: number, presence?: PresenceProof) => Promise<Appointment>;
+  startLesson: (appointmentId: number, presence?: PresenceProof) => Promise<Appointment>;
   finishLesson: (appointmentId: number) => Promise<Appointment>;
   submitLessonReview: (appointmentId: number, rating: number, comment: string) => Promise<Appointment>;
 };
@@ -145,8 +146,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     respondToLesson: (appointmentId, accepted) => postAppointment(`/appointments/${appointmentId}/respond`, { accepted }),
     setAvailability,
     cancelLesson: (appointmentId) => postAppointment(`/appointments/${appointmentId}/cancel`),
-    confirmLesson: (appointmentId) => postAppointment(`/appointments/${appointmentId}/confirm`),
-    startLesson: (appointmentId) => postAppointment(`/appointments/${appointmentId}/start`),
+    confirmLesson: (appointmentId, presence) => postAppointment(`/appointments/${appointmentId}/confirm`, { presence }),
+    startLesson: (appointmentId, presence) => postAppointment(`/appointments/${appointmentId}/start`, { presence }),
     finishLesson,
     submitLessonReview: (appointmentId, rating, comment) => postAppointment(`/appointments/${appointmentId}/reviews`, { rating, comment }),
   };

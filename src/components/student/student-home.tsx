@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { NotificationBell } from '@/components/notification-bell';
@@ -22,6 +22,12 @@ export function StudentHome() {
   const { user, appointments, refreshAppointments, refreshAccount } = useDriveApp();
   const teachers = useApiData<{ teachers: Teacher[] }>('/teachers');
   const [refreshing, setRefreshing] = useState(false);
+
+  // A aula pode ter mudado em outro celular (ex.: o instrutor confirmou o fim).
+  useFocusEffect(useCallback(() => {
+    refreshAppointments().catch(() => undefined);
+    refreshAccount().catch(() => undefined);
+  }, [refreshAppointments, refreshAccount]));
 
   const mine = appointments.filter((appointment) => appointment.studentId === user?.id);
   // A lista da API já vem ordenada: em andamento, agendadas, pedidos.

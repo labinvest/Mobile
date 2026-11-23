@@ -1,5 +1,5 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { NotificationBell } from '@/components/notification-bell';
@@ -18,6 +18,12 @@ export function TeacherHome() {
   const students = useApiData<{ students: TeacherStudent[] }>('/teachers/me/students');
   const [refreshing, setRefreshing] = useState(false);
   const teacher = user?.teacher;
+
+  // A aula pode ter mudado em outro celular (ex.: o aluno confirmou o fim).
+  useFocusEffect(useCallback(() => {
+    refreshAppointments().catch(() => undefined);
+    refreshAccount().catch(() => undefined);
+  }, [refreshAppointments, refreshAccount]));
 
   const mine = appointments.filter((appointment) => appointment.teacherId === user?.id);
   const requests = mine.filter((appointment) => appointment.status === 'requested');

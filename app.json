@@ -18,7 +18,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.vidotto7.rotaaulascnh"
+      "package": "com.vidotto7.rotaaulascnh",
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT"
+      ]
     },
     "web": {
       "output": "static",
@@ -32,7 +37,21 @@
           "backgroundColor": "#F4F5F1"
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "neverForLocation": true,
+          "bluetoothAlwaysPermission": "O Rota usa o Bluetooth para se conectar ao dispositivo do carro durante a aula."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O Rota usa a sua localização para gravar o trajeto da aula."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -45,8 +64,9 @@
         }
       },
       "eas": {
-        "projectId": "78c7ceb3-491b-4095-851f-e2a114578a28"
+        "projectId": "e49ba28e-2125-401b-be2b-8d4e9b8ea723"
       }
-    }
+    },
+    "owner": "indexnet"
   }
 }

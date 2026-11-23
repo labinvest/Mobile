@@ -5,7 +5,9 @@ import { StyleSheet, View } from 'react-native';
 import { LessonReviewSection } from '@/components/lesson/lesson-review';
 import { LessonRouteSection } from '@/components/lesson/lesson-route';
 import { Avatar, Badge, BottomBar, Button, EmptyState, Header, Icon, ListRow, Notice, Screen, SectionHeader, Surface, Text, type IconName } from '@/components/ui';
+import { useCarDevice } from '@/hooks/use-car-device';
 import { useDriveApp } from '@/hooks/use-drive-app';
+import { useLocationFeed } from '@/hooks/use-location-feed';
 import { errorMessage } from '@/lib/api';
 import { haptic } from '@/lib/haptics';
 import { lessonFocus, statusMeta } from '@/lib/lessons';
@@ -25,7 +27,7 @@ function formatDuration(seconds: number) {
 }
 
 export default function LessonScreen() {
-  const { role, appointments, refreshAppointments, cancelLesson, confirmLesson, startLesson, finishLesson, respondToLesson, submitLessonReview } = useDriveApp();
+  const { role, appointments, refreshAppointments, refreshAccount, cancelLesson, confirmLesson, startLesson, finishLesson, respondToLesson, submitLessonReview } = useDriveApp();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const lesson = appointments.find((appointment) => String(appointment.id) === id);
   const [busy, setBusy] = useState<string | null>(null);
@@ -33,13 +35,50 @@ export default function LessonScreen() {
   const [confirmFinish, setConfirmFinish] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  const car = useCarDevice(role === 'student' || role === 'teacher' ? role : null);
+  const { send: sendToCar, connected: carConnected, status: carStatus } = car;
+  const lessonId = lesson?.id;
+  const recordingThis = !!carStatus?.recording && carStatus.lessonId === lessonId;
+  // Instrutor e aluno leem a localização durante a aula. Sem o carro, os pontos esperam na fila e seguem quando ele volta.
+  // O aluno só entrega se a localização do instrutor parou de chegar (redundância, sem duplicar).
+  const tracking = useLocationFeed({
+    active: (role === 'teacher' || role === 'student') && lesson?.status === 'in-progress',
+    ready: recordingThis,
+    skip: role === 'student' && !!carStatus?.gps,
+    send: sendToCar,
+  });
+  const { flush } = tracking;
   const waiting = lesson?.status === 'requested' || lesson?.status === 'scheduled' || lesson?.status === 'in-progress';
+
+  // A aula só conclui quando os dois confirmam o fim; só então o ESP32 para de gravar e entrega o trajeto.
+  // Entrega antes os pontos que ficaram na fila do celular.
+  useEffect(() => {
+    if (role === 'teacher' && lesson?.status === 'completed' && recordingThis) flush().then(() => sendToCar('STOP')).catch(() => undefined);
+  }, [role, lesson?.status, recordingThis, flush, sendToCar]);
+
+  // Com a aula em andamento, o carro tem que estar gravando esta aula: para o que sobrou de uma aula antiga e (re)inicia a atual.
+  // O ESP32 recusa o START enquanto entrega a anterior; ao terminar, o status muda e isto roda de novo.
+  const carRecording = carStatus?.recording;
+  const carRecordedLesson = carStatus?.lessonId;
+  const carPending = carStatus?.pending;
+  const studentInCar = carStatus?.student;
+  useEffect(() => {
+    if (role !== 'teacher' || lesson?.status !== 'in-progress' || !carConnected || lessonId === undefined) return;
+    if (carRecording && carRecordedLesson !== lessonId) sendToCar('STOP').catch(() => undefined);
+    else if (!carRecording && !carPending && studentInCar) sendToCar(`START ${lessonId}`).catch(() => undefined);
+  }, [role, lesson?.status, lessonId, carConnected, carRecording, carRecordedLesson, carPending, studentInCar, sendToCar]);
 
   useEffect(() => {
     if (lesson?.status !== 'in-progress') return;
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, [lesson?.status]);
+
+  // Quem confirmou o fim primeiro só descobre a conclusão pela sincronização: atualiza a meta de aulas.
+  const lessonStatus = lesson?.status;
+  useEffect(() => {
+    if (lessonStatus === 'completed') refreshAccount().catch(() => undefined);
+  }, [lessonStatus, refreshAccount]);
 
   useFocusEffect(
     useCallback(() => {
@@ -94,19 +133,31 @@ export default function LessonScreen() {
       );
     }
     if (lesson.status === 'scheduled' && !myConfirmed) {
-      return <Button label="Confirmar minha presença" size="lg" icon="account-check-outline" loading={busy === 'confirm'} onPress={() => run('confirm', () => confirmLesson(lesson.id))} fullWidth />;
+      return <Button label="Confirmar minha presença" size="lg" icon="account-check-outline" loading={busy === 'confirm'} onPress={() => run('confirm', async () => confirmLesson(lesson.id, await car.prove(lesson.id)))} fullWidth />;
+    }
+    if (lesson.status === 'scheduled' && me === 'student') {
+      return <Button label={bothConfirmed ? 'Aguardando o instrutor iniciar' : `Aguardando ${otherName.split(' ')[0]} confirmar`} size="lg" icon="steering" disabled fullWidth />;
     }
     if (lesson.status === 'scheduled') {
-      return <Button label={bothConfirmed ? 'Iniciar aula' : `Aguardando ${otherName.split(' ')[0]} confirmar`} size="lg" icon="steering" disabled={!bothConfirmed} loading={busy === 'start'} onPress={() => run('start', () => startLesson(lesson.id))} fullWidth />;
+      return <Button label={bothConfirmed ? 'Iniciar aula' : `Aguardando ${otherName.split(' ')[0]} confirmar`} size="lg" icon="steering" disabled={!bothConfirmed} loading={busy === 'start'} onPress={() => run('start', async () => {
+        if (car.connected && me === 'teacher' && !car.status?.student) throw new Error('O aluno ainda não se conectou ao dispositivo do carro.');
+        // O START do ESP32 sai sozinho quando a aula vira "em andamento" (efeito no topo), com reenvio se ele recusar.
+        await startLesson(lesson.id, await car.prove(lesson.id));
+      })} fullWidth />;
     }
     if (lesson.status === 'in-progress') {
+      const myFinished = me === 'student' ? lesson.studentFinished : lesson.teacherFinished;
+      const otherFinished = me === 'student' ? lesson.teacherFinished : lesson.studentFinished;
+      if (myFinished && !otherFinished) {
+        return <Button label={`Aguardando ${otherName.split(' ')[0]} confirmar o fim`} size="lg" icon="flag-checkered" variant="secondary" disabled fullWidth />;
+      }
       return confirmFinish ? (
         <View style={styles.actions}>
           <Button label="Continuar aula" variant="secondary" onPress={() => setConfirmFinish(false)} style={styles.flex} />
           <Button label="Sim, finalizar" variant="danger" loading={busy === 'finish'} onPress={() => run('finish', () => finishLesson(lesson.id)).then(() => setConfirmFinish(false))} style={styles.flex} />
         </View>
       ) : (
-        <Button label="Finalizar aula" size="lg" icon="flag-checkered" variant="secondary" onPress={() => setConfirmFinish(true)} fullWidth />
+        <Button label={otherFinished ? `${otherName.split(' ')[0]} já confirmou o fim. Confirmar` : 'Finalizar aula'} size="lg" icon="flag-checkered" variant="secondary" onPress={() => setConfirmFinish(true)} fullWidth />
       );
     }
     if ((lesson.status === 'declined' || lesson.status === 'cancelled') && me === 'student') {
@@ -145,6 +196,8 @@ export default function LessonScreen() {
       {!!error && <Notice tone="danger" message={error} style={styles.block} />}
 
       <StatusPanel lesson={lesson} me={me} otherName={otherName} elapsed={elapsed} />
+
+      {me && (lesson.status === 'scheduled' || lesson.status === 'in-progress') && <CarPanel car={car} locationDenied={tracking.denied} />}
 
       {(lesson.status === 'in-progress' || lesson.status === 'completed') && <LessonRouteSection lessonId={lesson.id} live={lesson.status === 'in-progress'} />}
 
@@ -223,6 +276,32 @@ function StatusPanel({ lesson, me, otherName, elapsed }: { lesson: Appointment; 
     );
   }
   return null;
+}
+
+/** Conexão com o dispositivo do carro: prova a presença e grava o trajeto. */
+function CarPanel({ car, locationDenied }: { car: ReturnType<typeof useCarDevice>; locationDenied: boolean }) {
+  const { status } = car;
+  return (
+    <View style={styles.section}>
+      <SectionHeader title="Dispositivo do carro" />
+      <Surface style={styles.checklist}>
+        {status ? (
+          <>
+            {status.recording && <Check done={status.gps} label={status.gps ? 'Localização do celular chegando' : 'Aguardando a localização do celular do instrutor'} />}
+            <Check done={status.student} label="Aluno conectado" />
+            <Check done={status.teacher} label="Instrutor conectado" />
+            {status.recording && <Text variant="callout" tone="muted">Gravando o trajeto · {status.points} pontos</Text>}
+            {status.pending && <Text variant="callout" tone="muted">Trajeto sendo enviado. Mantenha o Wi-Fi do carro disponível.</Text>}
+          </>
+        ) : (
+          <Text variant="footnote" tone="muted">Conecte-se ao dispositivo para provar que você está no carro e gravar o trajeto da aula. Aluno e instrutor conectam, cada um no seu celular.</Text>
+        )}
+        {!!car.error && <Notice tone="danger" message={car.error} />}
+        {locationDenied && <Notice tone="danger" message="Permita a localização do app nas configurações do celular para gravar o trajeto." />}
+        {!status && <Button label="Conectar ao carro" icon="bluetooth" variant="secondary" loading={car.connecting} onPress={car.connect} fullWidth />}
+      </Surface>
+    </View>
+  );
 }
 
 function Check({ done, label }: { done: boolean; label: string }) {

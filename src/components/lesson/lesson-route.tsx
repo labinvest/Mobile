@@ -20,10 +20,11 @@ export function LessonRouteSection({ lessonId, live }: { lessonId: number; live:
   const { data, error, reload } = useApiData<LessonRoute>(`/appointments/${lessonId}/route`);
 
   useEffect(() => {
-    if (!live) return;
+    // Aula concluída sem pontos: o dispositivo do carro entrega o trajeto só no fim, então continua olhando.
+    if (!live && data?.points.length !== 0) return;
     const timer = setInterval(reload, LIVE_REFRESH_MS);
     return () => clearInterval(timer);
-  }, [live, reload]);
+  }, [live, data?.points.length, reload]);
 
   // Aula concluída sem GPS: não há o que mostrar.
   if (!live && data?.points.length === 0) return null;
@@ -34,7 +35,7 @@ export function LessonRouteSection({ lessonId, live }: { lessonId: number; live:
       {!data ? (
         error ? <Notice tone="danger" message={error} actionLabel="Tentar de novo" onAction={reload} /> : <Skeleton height={MAP_HEIGHT} rounded={radius.lg} />
       ) : data.points.length === 0 ? (
-        <Notice tone="info" title="Aguardando o GPS do veículo" message="O trajeto aparece aqui assim que os primeiros pontos chegarem." />
+        <Notice tone="info" title="Trajeto em gravação" message="O dispositivo do carro grava o percurso e envia ao final da aula. Ele aparece aqui assim que chegar." />
       ) : (
         <Surface padded={false} style={styles.card}>
           <RouteMap route={data} live={live} />

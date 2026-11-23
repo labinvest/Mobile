@@ -36,6 +36,8 @@ export type Appointment = {
   cancelledBy?: 'student' | 'teacher';
   studentConfirmed: boolean;
   teacherConfirmed: boolean;
+  studentFinished: boolean;
+  teacherFinished: boolean;
   startedAt?: number;
   durationSeconds?: number;
   reviews: { student?: LessonReview; teacher?: LessonReview };
